@@ -23,7 +23,7 @@
         .tile-card {
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-        /* Style pour les indices verticaux (gauche et droite) */
+        /* Style pour les indices verticaux (gauche, droite, bas) */
         .vertical-input-container {
             writing-mode: vertical-lr;
             text-orientation: mixed;
@@ -42,7 +42,7 @@
         <div class="flex items-center gap-2">
             <div id="room-info" class="hidden text-xs sm:text-sm bg-emerald-950/80 px-3 py-1.5 rounded-xl border border-emerald-600/40 flex items-center gap-2">
                 <span>Salon: <strong id="display-room-code" class="text-emerald-300 font-mono">---</strong></span>
-                <button onclick="copyGameLink()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-0.5 rounded text-xs transition">📋</button>
+                <button onclick="copyGameLink()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-0.5 rounded text-xs transition" title="Copier le lien">📋</button>
             </div>
             <button onclick="backToHome()" class="bg-emerald-800 hover:bg-emerald-700 text-emerald-200 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold border border-emerald-600 transition flex items-center gap-1">
                 🏠 Accueil
@@ -56,6 +56,15 @@
         <div id="screen-menu" class="w-full max-w-md bg-emerald-900/80 p-6 rounded-3xl border border-emerald-700 shadow-2xl flex flex-col gap-5">
             <div class="text-center">
                 <p class="text-emerald-300/80 text-sm">Jeu d'association de mots coopératif</p>
+            </div>
+
+            <!-- Gestion du Pseudo -->
+            <div class="bg-emerald-950/60 p-3 rounded-2xl border border-emerald-700/50 flex flex-col gap-1.5">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-emerald-300">Votre Pseudo :</label>
+                <div class="flex gap-2">
+                    <input type="text" id="input-player-name" placeholder="Entrez votre pseudo" class="flex-grow bg-emerald-950 border border-emerald-700 rounded-xl p-2.5 text-emerald-100 font-semibold focus:outline-none focus:border-emerald-400 text-sm">
+                    <button onclick="savePlayerName()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition">Mettre à jour</button>
+                </div>
             </div>
 
             <div class="space-y-4">
@@ -91,56 +100,58 @@
         <div id="screen-waiting" class="hidden w-full max-w-md bg-emerald-900/80 p-8 rounded-3xl border border-emerald-700 shadow-2xl text-center flex flex-col items-center gap-4 my-auto">
             <div class="text-4xl animate-bounce">⏳</div>
             <h3 class="text-xl font-bold text-emerald-300">En attente de l'autre joueur...</h3>
-            <p id="waiting-text" class="text-emerald-200 text-sm">Votre plateau a été transmis. En attente que le second joueur termine et envoie son plateau.</p>
+            <p id="waiting-text" class="text-emerald-200 text-sm">Votre plateau a été transmis. La partie démarrera dès que votre coéquipier aura également envoyé son plateau.</p>
         </div>
 
         <!-- ================= ECRAN DE JEU ================= -->
         <div id="screen-game" class="hidden w-full flex flex-col items-center">
             
             <!-- Bandeau de statut -->
-            <div id="game-status-banner" class="w-full bg-emerald-900/90 text-center py-2 px-4 rounded-xl border border-emerald-700/70 mb-3 font-semibold text-emerald-200 text-sm shadow">
+            <div id="game-status-banner" class="w-full bg-emerald-900/90 text-center py-2 px-4 rounded-xl border border-emerald-700/70 mb-2 font-semibold text-emerald-200 text-sm shadow">
                 Phase 1 : Remplissez vos indices pour le trèfle !
             </div>
 
-            <!-- Zone Plateau de Trèfle (Prend toute la largeur disponible, carré) -->
-            <div id="clover-wrapper" class="w-full max-w-[500px] aspect-square relative my-1 transition-transform duration-300 flex items-center justify-center p-2">
-                <div id="clover-container" class="absolute inset-2 bg-emerald-800 rounded-3xl border-4 border-emerald-600 shadow-2xl flex flex-col items-center justify-between p-3 clover-board transition-transform duration-300">
+            <!-- Zone Plateau de Trèfle (Grand format carré maximisé, indices gauche, droite et bas verticaux compacts) -->
+            <div id="clover-wrapper" class="w-full max-w-[560px] aspect-square relative my-1 transition-transform duration-300 flex items-center justify-center p-1">
+                <div id="clover-container" class="absolute inset-1 bg-emerald-800 rounded-3xl border-4 border-emerald-600 shadow-2xl flex flex-col items-center justify-between p-2 clover-board transition-transform duration-300">
                     
                     <!-- Indice HAUT (Horizontal classique) -->
                     <div class="w-full text-center z-10 flex justify-center">
-                        <input type="text" id="clue-top" placeholder="Indice Haut" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-48 sm:w-64 text-xs sm:text-sm focus:outline-none focus:border-emerald-300 shadow" onchange="syncClues()">
+                        <input type="text" id="clue-top" placeholder="Indice Haut" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-3 py-1 text-center font-bold text-emerald-200 w-40 sm:w-52 text-xs focus:outline-none focus:border-emerald-300 shadow" onchange="syncClues()">
                     </div>
 
-                    <!-- Ligne Centrale (Gauche / Grille 2x2 / Droite) -->
+                    <!-- Ligne Centrale (Gauche vertical / Grille géante / Droite vertical) -->
                     <div class="w-full flex justify-between items-center z-10 my-auto">
-                        <!-- Indice GAUCHE (Vertical, pivoté à 90°) -->
-                        <div class="h-32 sm:h-40 flex items-center justify-center px-1">
-                            <input type="text" id="clue-left" placeholder="Indice Gauche" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-28 sm:w-36 text-xs sm:text-sm focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
+                        <!-- Indice GAUCHE (Vertical compact) -->
+                        <div class="w-[15%] h-36 sm:h-44 flex items-center justify-center px-0.5">
+                            <input type="text" id="clue-left" placeholder="Indice Gauche" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-1 py-1 text-center font-bold text-emerald-200 w-28 sm:w-36 text-[11px] sm:text-xs focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
                         </div>
 
-                        <!-- Grille 2x2 strictement carrée -->
-                        <div class="grid grid-cols-2 gap-2 w-[65%] aspect-square bg-emerald-900/90 p-2 rounded-2xl border-2 border-emerald-600/60 shadow-inner">
+                        <!-- Grille 2x2 géante strictement carrée -->
+                        <div class="grid grid-cols-2 gap-2 w-[70%] aspect-square bg-emerald-900/90 p-2.5 rounded-2xl border-2 border-emerald-600/60 shadow-inner">
                             <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="0" onclick="handleSlotClick(0)"></div>
                             <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="1" onclick="handleSlotClick(1)"></div>
                             <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="2" onclick="handleSlotClick(2)"></div>
                             <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="3" onclick="handleSlotClick(3)"></div>
                         </div>
 
-                        <!-- Indice DROITE (Vertical, pivoté à 90°) -->
-                        <div class="h-32 sm:h-40 flex items-center justify-center px-1">
-                            <input type="text" id="clue-right" placeholder="Indice Droite" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-28 sm:w-36 text-xs sm:text-sm focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
+                        <!-- Indice DROITE (Vertical compact) -->
+                        <div class="w-[15%] h-36 sm:h-44 flex items-center justify-center px-0.5">
+                            <input type="text" id="clue-right" placeholder="Indice Droite" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-1 py-1 text-center font-bold text-emerald-200 w-28 sm:w-36 text-[11px] sm:text-xs focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
                         </div>
                     </div>
 
-                    <!-- Indice BAS (Horizontal classique) -->
-                    <div class="w-full text-center z-10 flex justify-center">
-                        <input type="text" id="clue-bottom" placeholder="Indice Bas" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-48 sm:w-64 text-xs sm:text-sm focus:outline-none focus:border-emerald-300 shadow" onchange="syncClues()">
+                    <!-- Indice BAS (Vertical compact) -->
+                    <div class="w-full text-center z-10 flex justify-center py-0.5">
+                        <div class="h-10 sm:h-12 flex items-center justify-center">
+                            <input type="text" id="clue-bottom" placeholder="Indice Bas" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-40 sm:w-52 text-xs focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Commandes plateau & actions -->
-            <div class="flex flex-wrap items-center justify-center gap-2 my-3 w-full">
+            <div class="flex flex-wrap items-center justify-center gap-2 my-2 w-full">
                 <button onclick="rotateBoard()" class="bg-emerald-800 hover:bg-emerald-700 text-white font-semibold px-3 py-2 rounded-xl text-xs sm:text-sm border border-emerald-600 flex items-center gap-1 active:scale-95 transition shadow">
                     🔄 Pivoter plateau (90°)
                 </button>
@@ -155,8 +166,8 @@
             </div>
 
             <!-- Réserve de cartes disponibles pour la résolution (Masquée en Phase 1) -->
-            <div id="reserve-section" class="hidden w-full max-w-lg bg-emerald-900/60 p-3 rounded-2xl border border-emerald-700/50 mt-1">
-                <div class="flex justify-between items-center mb-2 px-1">
+            <div id="reserve-section" class="hidden w-full max-w-lg bg-emerald-900/60 p-2.5 rounded-2xl border border-emerald-700/50 mt-1">
+                <div class="flex justify-between items-center mb-1 px-1">
                     <span class="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Cartes disponibles (Pièges inclus)</span>
                     <span class="text-[11px] text-emerald-400/80">Tap pour placer ou pivoter (🔄)</span>
                 </div>
@@ -209,6 +220,7 @@
         let roomCode = "";
         let channel = null;
         let myRole = "player1";
+        let playerName = "Joueur";
         let boardRotation = 0;
         let trapCardsCount = 2;
 
@@ -222,6 +234,17 @@
         let opponentSubmission = null;
 
         window.addEventListener('DOMContentLoaded', () => {
+            const savedName = localStorage.getItem('soclover_player_name');
+            if (savedName) {
+                playerName = savedName;
+                document.getElementById('input-player-name').value = savedName;
+            } else {
+                const randomName = "Joueur" + Math.floor(Math.random() * 900 + 100);
+                playerName = randomName;
+                document.getElementById('input-player-name').value = randomName;
+                localStorage.setItem('soclover_player_name', randomName);
+            }
+
             const urlParams = new URLSearchParams(window.location.search);
             const room = urlParams.get('room');
             if (room) {
@@ -229,11 +252,21 @@
             }
         });
 
+        function savePlayerName() {
+            const inputVal = document.getElementById('input-player-name').value.trim();
+            if (inputVal) {
+                playerName = inputVal;
+                localStorage.setItem('soclover_player_name', playerName);
+                alert(`Pseudo enregistré : ${playerName}`);
+            }
+        }
+
         function generateCode() {
             return Math.random().toString(36).substring(2, 6).toUpperCase();
         }
 
         function createGame() {
+            savePlayerName();
             roomCode = generateCode();
             trapCardsCount = parseInt(document.getElementById('select-traps').value);
             const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
@@ -243,6 +276,7 @@
         }
 
         function joinGameFromInput() {
+            savePlayerName();
             const input = document.getElementById('input-room').value.trim().toUpperCase();
             if (input.length >= 3) {
                 roomCode = input;
@@ -266,6 +300,9 @@
             document.getElementById('screen-game').classList.add('hidden');
             document.getElementById('screen-waiting').classList.add('hidden');
             document.getElementById('room-info').classList.add('hidden');
+            mySubmission = null;
+            opponentSubmission = null;
+            isResolutionPhase = false;
         }
 
         function initRoom() {
@@ -275,8 +312,12 @@
             document.getElementById('room-info').classList.remove('hidden');
             document.getElementById('display-room-code').textContent = roomCode;
 
-            document.getElementById('game-status-banner').textContent = "Phase 1 : Remplissez vos indices pour le trèfle !";
+            document.getElementById('game-status-banner').textContent = `Phase 1 (${playerName}) : Remplissez vos 4 indices !`;
             document.getElementById('reserve-section').classList.add('hidden');
+
+            mySubmission = null;
+            opponentSubmission = null;
+            isResolutionPhase = false;
 
             if (channel) supabaseClient.removeChannel(channel);
 
@@ -310,7 +351,6 @@
 
             originalSolution = JSON.parse(JSON.stringify(currentBoardCards));
 
-            // En phase 1, les cartes de réserve ne sont PAS affichées
             reserveCards = [];
             for(let i = 4; i < 4 + trapCardsCount; i++) {
                 reserveCards.push({
@@ -321,6 +361,15 @@
 
             boardRotation = 0;
             document.getElementById('clover-container').style.transform = `rotate(0deg)`;
+            
+            document.getElementById('clue-top').value = "";
+            document.getElementById('clue-bottom').value = "";
+            document.getElementById('clue-left').value = "";
+            document.getElementById('clue-right').value = "";
+            document.querySelectorAll('.clue-input').forEach(i => i.disabled = false);
+            document.getElementById('btn-submit-clues').classList.remove('hidden');
+            document.getElementById('btn-verify').classList.add('hidden');
+
             renderBoard();
         }
 
@@ -349,12 +398,12 @@
 
             const words = cardData.words;
             card.innerHTML = `
-                <div class="text-[9px] sm:text-xs font-bold uppercase truncate max-w-[95%] text-emerald-900">${words[0]}</div>
-                <div class="w-full flex justify-between items-center text-[9px] sm:text-xs font-bold uppercase text-emerald-900 px-1">
-                    <span class="-rotate-90 origin-center truncate max-w-[50px]">${words[3]}</span>
-                    <span class="rotate-90 origin-center truncate max-w-[50px]">${words[1]}</span>
+                <div class="text-[10px] sm:text-xs font-bold uppercase truncate max-w-[95%] text-emerald-900">${words[0]}</div>
+                <div class="w-full flex justify-between items-center text-[10px] sm:text-xs font-bold uppercase text-emerald-900 px-1">
+                    <span class="-rotate-90 origin-center truncate max-w-[55px]">${words[3]}</span>
+                    <span class="rotate-90 origin-center truncate max-w-[55px]">${words[1]}</span>
                 </div>
-                <div class="text-[9px] sm:text-xs font-bold uppercase truncate max-w-[95%] text-emerald-900">${words[2]}</div>
+                <div class="text-[10px] sm:text-xs font-bold uppercase truncate max-w-[95%] text-emerald-900">${words[2]}</div>
             `;
 
             card.onclick = (e) => {
@@ -428,12 +477,12 @@
                 return;
             }
 
-            // Mélanger les 4 cartes d'origine + les cartes pièges pour la résolution
             const allTiles = [...originalSolution, ...reserveCards].sort(() => 0.5 - Math.random());
             allTiles.forEach(t => t.rot = Math.floor(Math.random() * 4));
 
             mySubmission = {
                 sender: myRole,
+                name: playerName,
                 clues: clues,
                 tiles: allTiles,
                 solution: originalSolution
@@ -447,7 +496,6 @@
                 });
             }
 
-            // Basculer vers l'écran d'attente
             document.getElementById('screen-game').classList.add('hidden');
             document.getElementById('screen-waiting').classList.remove('hidden');
 
@@ -461,7 +509,6 @@
 
         function checkIfBothSubmitted() {
             if (mySubmission && opponentSubmission) {
-                // Les deux ont soumis : on passe à la phase de résolution du plateau de l'autre joueur
                 startResolutionPhase(opponentSubmission);
             }
         }
@@ -471,12 +518,11 @@
             document.getElementById('screen-game').classList.remove('hidden');
             isResolutionPhase = true;
 
-            document.getElementById('game-status-banner').textContent = "Phase 2 : Résolvez l'énigme du partenaire ! Placez et orientez les tuiles.";
+            document.getElementById('game-status-banner').textContent = `Phase 2 : Résolvez l'énigme de ${puzzleData.name || 'votre coéquipier'} !`;
             document.getElementById('btn-submit-clues').classList.add('hidden');
             document.getElementById('btn-verify').classList.remove('hidden');
             document.getElementById('reserve-section').classList.remove('hidden');
 
-            // Charger les indices de l'adversaire
             document.getElementById('clue-top').value = puzzleData.clues.top;
             document.getElementById('clue-bottom').value = puzzleData.clues.bottom;
             document.getElementById('clue-left').value = puzzleData.clues.left;
