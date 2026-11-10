@@ -22,12 +22,95 @@
         }
         .tile-card {
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            touch-action: manipulation;
         }
-        /* Style pour les indices verticaux (gauche, droite, bas) */
-        .vertical-input-container {
-            writing-mode: vertical-lr;
-            text-orientation: mixed;
-            transform: rotate(180deg);
+        .clue-input {
+            position: absolute;
+            z-index: 2;
+            width: 42%;
+            height: 2.25rem;
+            padding: 0.25rem 0.5rem;
+            border: 1px solid rgb(16 185 129 / 50%);
+            border-radius: 0.5rem;
+            background: rgb(2 44 34 / 95%);
+            color: rgb(209 250 229);
+            text-align: center;
+            font-size: clamp(0.65rem, 2.4vw, 0.8rem);
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+        }
+        .clue-input:focus {
+            outline: 2px solid rgb(110 231 183);
+            outline-offset: 1px;
+        }
+        .clue-top, .clue-bottom {
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .clue-top { top: 3%; }
+        .clue-bottom { bottom: 3%; }
+        .clue-left, .clue-right {
+            top: 50%;
+        }
+        .clue-left {
+            left: 8%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+        }
+        .clue-right {
+            left: 92%;
+            transform: translate(-50%, -50%) rotate(90deg);
+        }
+        .clover-grid {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 66%;
+            aspect-ratio: 1;
+            transform: translate(-50%, -50%);
+        }
+        .board-slot {
+            min-width: 0;
+            min-height: 0;
+        }
+        .tile-word {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-wrap: anywhere;
+            text-align: center;
+            line-height: 1.05;
+            font-size: clamp(0.48rem, 2vw, 0.75rem);
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .tile-word-top, .tile-word-bottom {
+            left: 5%;
+            width: 90%;
+            height: 22%;
+        }
+        .tile-word-top { top: 3%; }
+        .tile-word-bottom { bottom: 3%; }
+        .tile-word-left, .tile-word-right {
+            top: 50%;
+            width: 78%;
+            height: 22%;
+        }
+        .tile-word-left {
+            left: -19%;
+            transform: translateY(-50%) rotate(-90deg);
+        }
+        .tile-word-right {
+            right: -19%;
+            transform: translateY(-50%) rotate(90deg);
+        }
+        .board-slot.is-correct {
+            border-color: rgb(74 222 128);
+            box-shadow: 0 0 0 4px rgb(74 222 128 / 45%);
+        }
+        .board-slot.is-incorrect {
+            border-color: rgb(248 113 113);
+            box-shadow: 0 0 0 4px rgb(248 113 113 / 45%);
         }
     </style>
 </head>
@@ -63,7 +146,7 @@
                 <label class="block text-xs font-semibold uppercase tracking-wider text-emerald-300">Votre Pseudo :</label>
                 <div class="flex gap-2">
                     <input type="text" id="input-player-name" placeholder="Entrez votre pseudo" class="flex-grow bg-emerald-950 border border-emerald-700 rounded-xl p-2.5 text-emerald-100 font-semibold focus:outline-none focus:border-emerald-400 text-sm">
-                    <button onclick="savePlayerName()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition">Mettre à jour</button>
+                    <button onclick="savePlayerName(true)" class="bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition">Mettre à jour</button>
                 </div>
             </div>
 
@@ -79,6 +162,9 @@
 
                 <button onclick="createGame()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold py-3.5 px-4 rounded-xl shadow-lg transition active:scale-95 text-lg">
                     🍀 Créer une partie
+                </button>
+                <button onclick="startDebugResolution()" class="w-full bg-amber-500/90 hover:bg-amber-400 text-amber-950 font-bold py-2.5 px-4 rounded-xl shadow transition active:scale-95 text-sm">
+                    🧪 Tester la phase résolution (debug)
                 </button>
             </div>
 
@@ -113,39 +199,16 @@
 
             <!-- Zone Plateau de Trèfle (Grand format carré maximisé, indices gauche, droite et bas verticaux compacts) -->
             <div id="clover-wrapper" class="w-full max-w-[560px] aspect-square relative my-1 transition-transform duration-300 flex items-center justify-center p-1">
-                <div id="clover-container" class="absolute inset-1 bg-emerald-800 rounded-3xl border-4 border-emerald-600 shadow-2xl flex flex-col items-center justify-between p-2 clover-board transition-transform duration-300">
-                    
-                    <!-- Indice HAUT (Horizontal classique) -->
-                    <div class="w-full text-center z-10 flex justify-center">
-                        <input type="text" id="clue-top" placeholder="Indice Haut" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-3 py-1 text-center font-bold text-emerald-200 w-40 sm:w-52 text-xs focus:outline-none focus:border-emerald-300 shadow" onchange="syncClues()">
-                    </div>
-
-                    <!-- Ligne Centrale (Gauche vertical / Grille géante / Droite vertical) -->
-                    <div class="w-full flex justify-between items-center z-10 my-auto">
-                        <!-- Indice GAUCHE (Vertical compact) -->
-                        <div class="w-[15%] h-36 sm:h-44 flex items-center justify-center px-0.5">
-                            <input type="text" id="clue-left" placeholder="Indice Gauche" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-1 py-1 text-center font-bold text-emerald-200 w-28 sm:w-36 text-[11px] sm:text-xs focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
-                        </div>
-
-                        <!-- Grille 2x2 géante strictement carrée -->
-                        <div class="grid grid-cols-2 gap-2 w-[70%] aspect-square bg-emerald-900/90 p-2.5 rounded-2xl border-2 border-emerald-600/60 shadow-inner">
-                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="0" onclick="handleSlotClick(0)"></div>
-                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="1" onclick="handleSlotClick(1)"></div>
-                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="2" onclick="handleSlotClick(2)"></div>
-                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="3" onclick="handleSlotClick(3)"></div>
-                        </div>
-
-                        <!-- Indice DROITE (Vertical compact) -->
-                        <div class="w-[15%] h-36 sm:h-44 flex items-center justify-center px-0.5">
-                            <input type="text" id="clue-right" placeholder="Indice Droite" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-1 py-1 text-center font-bold text-emerald-200 w-28 sm:w-36 text-[11px] sm:text-xs focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
-                        </div>
-                    </div>
-
-                    <!-- Indice BAS (Vertical compact) -->
-                    <div class="w-full text-center z-10 flex justify-center py-0.5">
-                        <div class="h-10 sm:h-12 flex items-center justify-center">
-                            <input type="text" id="clue-bottom" placeholder="Indice Bas" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-40 sm:w-52 text-xs focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
-                        </div>
+                <div id="clover-container" class="absolute inset-1 bg-emerald-800 rounded-3xl border-4 border-emerald-600 shadow-2xl clover-board transition-transform duration-300">
+                    <input type="text" id="clue-top" placeholder="Indice Haut" aria-label="Indice haut" class="clue-input clue-top">
+                    <input type="text" id="clue-bottom" placeholder="Indice Bas" aria-label="Indice bas" class="clue-input clue-bottom">
+                    <input type="text" id="clue-left" placeholder="Indice Gauche" aria-label="Indice gauche" class="clue-input clue-left">
+                    <input type="text" id="clue-right" placeholder="Indice Droite" aria-label="Indice droite" class="clue-input clue-right">
+                    <div class="clover-grid grid grid-cols-2 gap-1.5 sm:gap-2 bg-emerald-900/90 p-1.5 sm:p-2 rounded-2xl border-2 border-emerald-600/60 shadow-inner">
+                        <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square" data-slot="0" onclick="handleSlotClick(0)" ondragover="allowCardDrop(event)" ondrop="dropCard(event, 0)"></div>
+                        <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square" data-slot="1" onclick="handleSlotClick(1)" ondragover="allowCardDrop(event)" ondrop="dropCard(event, 1)"></div>
+                        <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square" data-slot="2" onclick="handleSlotClick(2)" ondragover="allowCardDrop(event)" ondrop="dropCard(event, 2)"></div>
+                        <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square" data-slot="3" onclick="handleSlotClick(3)" ondragover="allowCardDrop(event)" ondrop="dropCard(event, 3)"></div>
                     </div>
                 </div>
             </div>
@@ -169,7 +232,7 @@
             <div id="reserve-section" class="hidden w-full max-w-lg bg-emerald-900/60 p-2.5 rounded-2xl border border-emerald-700/50 mt-1">
                 <div class="flex justify-between items-center mb-1 px-1">
                     <span class="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Cartes disponibles (Pièges inclus)</span>
-                    <span class="text-[11px] text-emerald-400/80">Tap pour placer ou pivoter (🔄)</span>
+                    <span class="text-[11px] text-emerald-400/80">Touchez pour pivoter, glissez pour placer</span>
                 </div>
                 <div id="deck-reserve" class="flex flex-wrap justify-center gap-2 min-h-[90px]">
                     <!-- Tuiles injectées dynamiquement -->
@@ -193,7 +256,9 @@
     <script>
         const SUPABASE_URL = "https://ckvqujwxzlpdfwxbuqno.supabase.co";
         const SUPABASE_KEY = "sb_publishable__8RopAM6dop73hqiygWiTQ_PH9riFog";
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = window.supabase
+            ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+            : null;
 
         const WORDS_DATABASE = [
             ["POISSON", "CHAT", "EAU", "NAGE"], ["SOLEIL", "PLAGE", "CHALEUR", "ETE"],
@@ -219,10 +284,12 @@
 
         let roomCode = "";
         let channel = null;
-        let myRole = "player1";
+        let clientId = "";
+        let channelReady = false;
         let playerName = "Joueur";
         let boardRotation = 0;
         let trapCardsCount = 2;
+        let isDebugGame = false;
 
         let currentBoardCards = [null, null, null, null];
         let originalSolution = [null, null, null, null];
@@ -248,58 +315,79 @@
             const urlParams = new URLSearchParams(window.location.search);
             const room = urlParams.get('room');
             if (room) {
+                document.getElementById('input-room').value = room.toUpperCase();
                 joinRoom(room.toUpperCase());
             }
         });
 
-        function savePlayerName() {
+        function savePlayerName(showConfirmation = false) {
             const inputVal = document.getElementById('input-player-name').value.trim();
-            if (inputVal) {
-                playerName = inputVal;
-                localStorage.setItem('soclover_player_name', playerName);
-                alert(`Pseudo enregistré : ${playerName}`);
+            if (!inputVal) {
+                showModal("Pseudo requis", "Saisissez un pseudo avant de continuer.");
+                return false;
             }
+            playerName = inputVal;
+            localStorage.setItem('soclover_player_name', playerName);
+            if (showConfirmation) showModal("Pseudo enregistré", `Votre pseudo est maintenant ${playerName}.`);
+            return true;
         }
 
         function generateCode() {
-            return Math.random().toString(36).substring(2, 6).toUpperCase();
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
         }
 
         function createGame() {
-            savePlayerName();
+            if (!savePlayerName() || !supabaseClient) {
+                if (!supabaseClient) showModal("Connexion indisponible", "Supabase n'a pas pu être chargé. Vérifiez votre connexion puis rechargez la page.");
+                return;
+            }
             roomCode = generateCode();
             trapCardsCount = parseInt(document.getElementById('select-traps').value);
             const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
             window.history.pushState({ room: roomCode }, '', newUrl);
-            myRole = "player1";
+            isDebugGame = false;
             initRoom();
         }
 
         function joinGameFromInput() {
-            savePlayerName();
+            if (!savePlayerName()) return;
             const input = document.getElementById('input-room').value.trim().toUpperCase();
             if (input.length >= 3) {
+                if (!supabaseClient) {
+                    showModal("Connexion indisponible", "Supabase n'a pas pu être chargé. Vérifiez votre connexion puis rechargez la page.");
+                    return;
+                }
                 roomCode = input;
                 const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
                 window.history.pushState({ room: roomCode }, '', newUrl);
-                myRole = "player2";
+                isDebugGame = false;
                 initRoom();
+            } else {
+                showModal("Code invalide", "Saisissez le code du salon (au moins 3 caractères).");
             }
         }
 
         function joinRoom(code) {
+            if (!supabaseClient) {
+                showModal("Connexion indisponible", "Supabase n'a pas pu être chargé. Vérifiez votre connexion puis rechargez la page.");
+                return;
+            }
             roomCode = code;
-            myRole = "player2";
+            isDebugGame = false;
             initRoom();
         }
 
         function backToHome() {
-            if (channel) supabaseClient.removeChannel(channel);
+            if (channel && supabaseClient) supabaseClient.removeChannel(channel);
+            channel = null;
+            channelReady = false;
+            isDebugGame = false;
             window.history.pushState({}, '', window.location.pathname);
             document.getElementById('screen-menu').classList.remove('hidden');
             document.getElementById('screen-game').classList.add('hidden');
             document.getElementById('screen-waiting').classList.add('hidden');
             document.getElementById('room-info').classList.add('hidden');
+            document.getElementById('reserve-section').classList.add('hidden');
             mySubmission = null;
             opponentSubmission = null;
             isResolutionPhase = false;
@@ -318,6 +406,11 @@
             mySubmission = null;
             opponentSubmission = null;
             isResolutionPhase = false;
+            channelReady = false;
+            clientId = typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            document.getElementById('btn-submit-clues').disabled = true;
 
             if (channel) supabaseClient.removeChannel(channel);
 
@@ -328,18 +421,77 @@
             channel.on('broadcast', { event: 'player-submit' }, payload => {
                 handleOpponentSubmission(payload.payload);
             });
+            channel.on('presence', { event: 'sync' }, () => {
+                const hasOpponent = Object.values(channel.presenceState())
+                    .flat()
+                    .some(presence => presence.clientId !== clientId);
+                if (hasOpponent && mySubmission && !isResolutionPhase) {
+                    broadcastSubmission();
+                }
+            });
 
-            channel.subscribe(status => {
+            channel.subscribe(async status => {
                 if (status === 'SUBSCRIBED') {
-                    console.log("Connecté au canal temps réel Supabase !");
+                    channelReady = true;
+                    document.getElementById('btn-submit-clues').disabled = false;
+                    try {
+                        const trackStatus = await channel.track({ clientId, name: playerName });
+                        if (trackStatus !== 'ok') {
+                            showModal("Erreur de connexion", "Impossible de signaler votre présence dans le salon. Rechargez la page pour réessayer.");
+                        }
+                    } catch (error) {
+                        console.error("Échec du suivi de présence Supabase :", error);
+                        showModal("Erreur de connexion", "Impossible de signaler votre présence dans le salon. Rechargez la page pour réessayer.");
+                    }
+                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    channelReady = false;
+                    document.getElementById('btn-submit-clues').disabled = true;
+                    showModal("Erreur de connexion", "La connexion au salon a échoué. Vérifiez votre réseau puis rechargez la page.");
                 }
             });
 
             generateInitialBoard();
         }
 
+        function startDebugResolution() {
+            if (!savePlayerName()) return;
+            trapCardsCount = parseInt(document.getElementById('select-traps').value);
+            roomCode = "DEBUG";
+            isDebugGame = true;
+            if (channel && supabaseClient) supabaseClient.removeChannel(channel);
+            channel = null;
+            channelReady = false;
+            mySubmission = null;
+            opponentSubmission = null;
+            isResolutionPhase = false;
+
+            document.getElementById('screen-menu').classList.add('hidden');
+            document.getElementById('screen-waiting').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+            document.getElementById('room-info').classList.remove('hidden');
+            document.getElementById('display-room-code').textContent = "DEBUG";
+            generateInitialBoard();
+
+            const solution = cloneCards(originalSolution);
+            const tiles = shuffleCards([
+                ...cloneCards(solution),
+                ...cloneCards(reserveCards)
+            ]).map(tile => ({ ...tile, rot: Math.floor(Math.random() * 4) }));
+            startResolutionPhase({
+                name: "Joueur de test",
+                clues: {
+                    top: "Indice du haut",
+                    bottom: "Indice du bas",
+                    left: "Indice de gauche",
+                    right: "Indice de droite"
+                },
+                solution,
+                tiles
+            });
+        }
+
         function generateInitialBoard() {
-            const shuffled = [...WORDS_DATABASE].sort(() => 0.5 - Math.random());
+            const shuffled = shuffleCards([...WORDS_DATABASE]);
             currentBoardCards = [];
             
             for(let i = 0; i < 4; i++) {
@@ -392,35 +544,39 @@
 
         function createCardDOM(cardData, index, isReserve) {
             const card = document.createElement('div');
-            card.className = `tile-card relative w-full h-full bg-emerald-100 text-emerald-950 rounded-xl shadow-md p-1.5 flex flex-col justify-between items-center cursor-pointer border-2 aspect-square ${selectedReserveIndex === index && isReserve ? 'border-amber-400 ring-4 ring-amber-300' : 'border-emerald-700'}`;
-            
+            card.className = `tile-card relative w-full h-full bg-emerald-100 text-emerald-950 rounded-xl shadow-md cursor-pointer border-2 aspect-square ${selectedReserveIndex === index && isReserve ? 'border-amber-400 ring-4 ring-amber-300' : 'border-emerald-700'}`;
             card.style.transform = `rotate(${cardData.rot * 90}deg)`;
+            card.setAttribute('role', 'button');
+            card.setAttribute('aria-label', `Carte ${cardData.words.join(', ')}, orientation ${cardData.rot * 90} degrés`);
+            card.draggable = Boolean(isReserve) && isResolutionPhase;
 
             const words = cardData.words;
-            card.innerHTML = `
-                <div class="text-[10px] sm:text-xs font-bold uppercase truncate max-w-[95%] text-emerald-900">${words[0]}</div>
-                <div class="w-full flex justify-between items-center text-[10px] sm:text-xs font-bold uppercase text-emerald-900 px-1">
-                    <span class="-rotate-90 origin-center truncate max-w-[55px]">${words[3]}</span>
-                    <span class="rotate-90 origin-center truncate max-w-[55px]">${words[1]}</span>
-                </div>
-                <div class="text-[10px] sm:text-xs font-bold uppercase truncate max-w-[95%] text-emerald-900">${words[2]}</div>
-            `;
+            ['tile-word-top', 'tile-word-right', 'tile-word-bottom', 'tile-word-left'].forEach((position, wordIndex) => {
+                const label = document.createElement('span');
+                label.className = `tile-word ${position}`;
+                label.textContent = words[wordIndex];
+                card.appendChild(label);
+            });
 
             card.onclick = (e) => {
                 e.stopPropagation();
                 if (isResolutionPhase) {
                     if (isReserve) {
-                        if (selectedReserveIndex === index) {
-                            cardData.rot = (cardData.rot + 1) % 4;
-                        } else {
-                            selectedReserveIndex = index;
-                        }
-                        renderBoard();
-                    } else {
-                        cardData.rot = (cardData.rot + 1) % 4;
-                        renderBoard();
+                        selectedReserveIndex = index;
                     }
+                    cardData.rot = (cardData.rot + 1) % 4;
+                    renderBoard();
                 }
+            };
+
+            card.ondragstart = (event) => {
+                if (!isReserve || !isResolutionPhase) {
+                    event.preventDefault();
+                    return;
+                }
+                event.dataTransfer.setData('text/plain', String(index));
+                event.dataTransfer.effectAllowed = 'move';
+                selectedReserveIndex = index;
             };
 
             return card;
@@ -432,7 +588,7 @@
 
             reserveCards.forEach((cardData, idx) => {
                 const wrapper = document.createElement('div');
-                wrapper.className = "w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0";
+                wrapper.className = "w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0";
                 const cardEl = createCardDOM(cardData, idx, true);
                 wrapper.appendChild(cardEl);
                 container.appendChild(wrapper);
@@ -443,13 +599,7 @@
             if (!isResolutionPhase) return;
 
             if (selectedReserveIndex !== null && reserveCards[selectedReserveIndex]) {
-                const cardToPlace = reserveCards.splice(selectedReserveIndex, 1)[0];
-                if (currentBoardCards[slotIndex]) {
-                    reserveCards.push(currentBoardCards[slotIndex]);
-                }
-                currentBoardCards[slotIndex] = cardToPlace;
-                selectedReserveIndex = null;
-                renderBoard();
+                placeReserveCard(selectedReserveIndex, slotIndex);
             } else if (currentBoardCards[slotIndex]) {
                 reserveCards.push(currentBoardCards[slotIndex]);
                 currentBoardCards[slotIndex] = null;
@@ -457,14 +607,36 @@
             }
         }
 
+        function allowCardDrop(event) {
+            if (isResolutionPhase) event.preventDefault();
+        }
+
+        function dropCard(event, slotIndex) {
+            event.preventDefault();
+            if (!isResolutionPhase) return;
+            const reserveIndex = Number(event.dataTransfer.getData('text/plain'));
+            if (Number.isInteger(reserveIndex) && reserveCards[reserveIndex]) {
+                placeReserveCard(reserveIndex, slotIndex);
+            }
+        }
+
+        function placeReserveCard(reserveIndex, slotIndex) {
+            const cardToPlace = reserveCards.splice(reserveIndex, 1)[0];
+            if (currentBoardCards[slotIndex]) reserveCards.push(currentBoardCards[slotIndex]);
+            currentBoardCards[slotIndex] = cardToPlace;
+            selectedReserveIndex = null;
+            document.querySelectorAll('.board-slot').forEach(slot => {
+                slot.classList.remove('is-correct', 'is-incorrect');
+            });
+            renderBoard();
+        }
+
         function rotateBoard() {
             boardRotation = (boardRotation + 90) % 360;
             document.getElementById('clover-container').style.transform = `rotate(${boardRotation}deg)`;
         }
 
-        function syncClues() {}
-
-        function submitClues() {
+        async function submitClues() {
             const clues = {
                 top: document.getElementById('clue-top').value.trim(),
                 bottom: document.getElementById('clue-bottom').value.trim(),
@@ -477,23 +649,27 @@
                 return;
             }
 
-            const allTiles = [...originalSolution, ...reserveCards].sort(() => 0.5 - Math.random());
-            allTiles.forEach(t => t.rot = Math.floor(Math.random() * 4));
+            if (!isDebugGame && (!channelReady || !channel)) {
+                showModal("Connexion en cours", "Le salon n'est pas encore connecté. Réessayez dans quelques secondes.");
+                return;
+            }
+
+            const allTiles = shuffleCards([
+                ...cloneCards(originalSolution),
+                ...cloneCards(reserveCards)
+            ]).map(tile => ({ ...tile, rot: Math.floor(Math.random() * 4) }));
 
             mySubmission = {
-                sender: myRole,
+                sender: clientId,
                 name: playerName,
                 clues: clues,
                 tiles: allTiles,
-                solution: originalSolution
+                solution: cloneCards(originalSolution)
             };
 
-            if (channel) {
-                channel.send({
-                    type: 'broadcast',
-                    event: 'player-submit',
-                    payload: mySubmission
-                });
+            if (!isDebugGame && !(await broadcastSubmission())) {
+                mySubmission = null;
+                return;
             }
 
             document.getElementById('screen-game').classList.add('hidden');
@@ -502,18 +678,41 @@
             checkIfBothSubmitted();
         }
 
+        async function broadcastSubmission(showError = true) {
+            if (!channel || !channelReady || !mySubmission) return false;
+            try {
+                const status = await channel.send({
+                    type: 'broadcast',
+                    event: 'player-submit',
+                    payload: mySubmission
+                });
+                if (status === 'ok') return true;
+                if (showError) showModal("Envoi impossible", "Votre plateau n'a pas pu être envoyé. Vérifiez votre connexion puis réessayez.");
+                return false;
+            } catch (error) {
+                console.error("Échec de l'envoi Broadcast :", error);
+                if (showError) showModal("Envoi impossible", "Votre plateau n'a pas pu être envoyé. Vérifiez votre connexion puis réessayez.");
+                return false;
+            }
+        }
+
         function handleOpponentSubmission(payload) {
+            if (!payload || payload.sender === clientId || !payload.clues || !Array.isArray(payload.solution) || !Array.isArray(payload.tiles)) return;
             opponentSubmission = payload;
             checkIfBothSubmitted();
         }
 
         function checkIfBothSubmitted() {
-            if (mySubmission && opponentSubmission) {
+            if (mySubmission && opponentSubmission && !isResolutionPhase) {
                 startResolutionPhase(opponentSubmission);
             }
         }
 
         function startResolutionPhase(puzzleData) {
+            if (!puzzleData || !puzzleData.clues || !Array.isArray(puzzleData.solution) || puzzleData.solution.length !== 4 || !Array.isArray(puzzleData.tiles)) {
+                showModal("Plateau invalide", "Les données reçues pour cette partie sont incomplètes.");
+                return;
+            }
             document.getElementById('screen-waiting').classList.add('hidden');
             document.getElementById('screen-game').classList.remove('hidden');
             isResolutionPhase = true;
@@ -529,12 +728,15 @@
             document.getElementById('clue-right').value = puzzleData.clues.right;
             document.querySelectorAll('.clue-input').forEach(i => i.disabled = true);
 
-            originalSolution = puzzleData.solution;
+            originalSolution = cloneCards(puzzleData.solution);
             currentBoardCards = [null, null, null, null];
-            reserveCards = puzzleData.tiles;
+            reserveCards = cloneCards(puzzleData.tiles);
             selectedReserveIndex = null;
             boardRotation = 0;
             document.getElementById('clover-container').style.transform = `rotate(0deg)`;
+            document.querySelectorAll('.board-slot').forEach(slot => {
+                slot.classList.remove('is-correct', 'is-incorrect');
+            });
 
             renderBoard();
         }
@@ -549,11 +751,11 @@
 
                 if (placed && target && isSameCard(placed.words, target.words) && (placed.rot % 4 === target.rot % 4)) {
                     correctCount++;
-                    slotEl.classList.remove('border-red-500', 'border-emerald-600/40');
-                    slotEl.classList.add('border-green-400', 'ring-4', 'ring-green-400/50');
+                    slotEl.classList.remove('is-incorrect');
+                    slotEl.classList.add('is-correct');
                 } else {
-                    slotEl.classList.remove('border-green-400', 'border-emerald-600/40');
-                    slotEl.classList.add('border-red-500', 'ring-4', 'ring-red-500/50');
+                    slotEl.classList.remove('is-correct');
+                    slotEl.classList.add('is-incorrect');
                 }
             });
 
@@ -566,6 +768,18 @@
 
         function isSameCard(wordsA, wordsB) {
             return JSON.stringify(wordsA) === JSON.stringify(wordsB);
+        }
+
+        function cloneCards(cards) {
+            return cards.map(card => ({ words: [...card.words], rot: card.rot }));
+        }
+
+        function shuffleCards(cards) {
+            for (let index = cards.length - 1; index > 0; index--) {
+                const swapIndex = Math.floor(Math.random() * (index + 1));
+                [cards[index], cards[swapIndex]] = [cards[swapIndex], cards[index]];
+            }
+            return cards;
         }
 
         function showModal(title, text) {
