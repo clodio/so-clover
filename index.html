@@ -299,6 +299,8 @@
 
         let mySubmission = null;
         let opponentSubmission = null;
+        let submissionSyncInterval = null;
+        let submissionAcknowledged = false;
 
         window.addEventListener('DOMContentLoaded', () => {
             const savedName = localStorage.getItem('soclover_player_name');
@@ -379,6 +381,7 @@
 
         function backToHome() {
             if (channel && supabaseClient) supabaseClient.removeChannel(channel);
+            stopSubmissionSync();
             channel = null;
             channelReady = false;
             isDebugGame = false;
@@ -390,10 +393,12 @@
             document.getElementById('reserve-section').classList.add('hidden');
             mySubmission = null;
             opponentSubmission = null;
+            submissionAcknowledged = false;
             isResolutionPhase = false;
         }
 
         function initRoom() {
+            stopSubmissionSync();
             document.getElementById('screen-menu').classList.add('hidden');
             document.getElementById('screen-waiting').classList.add('hidden');
             document.getElementById('screen-game').classList.remove('hidden');
@@ -405,6 +410,7 @@
 
             mySubmission = null;
             opponentSubmission = null;
+            submissionAcknowledged = false;
             isResolutionPhase = false;
             channelReady = false;
             clientId = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -421,11 +427,14 @@
             channel.on('broadcast', { event: 'player-submit' }, payload => {
                 handleOpponentSubmission(payload.payload);
             });
+            channel.on('broadcast', { event: 'player-submit-ack' }, payload => {
+                handleSubmissionAck(payload.payload);
+            });
             channel.on('presence', { event: 'sync' }, () => {
                 const hasOpponent = Object.values(channel.presenceState())
                     .flat()
                     .some(presence => presence.clientId !== clientId);
-                if (hasOpponent && mySubmission && !isResolutionPhase) {
+                if (hasOpponent && mySubmission && !submissionAcknowledged && !isResolutionPhase) {
                     broadcastSubmission();
                 }
             });
@@ -666,6 +675,7 @@
                 tiles: allTiles,
                 solution: cloneCards(originalSolution)
             };
+            submissionAcknowledged = false;
 
             if (!isDebugGame && !(await broadcastSubmission())) {
                 mySubmission = null;
@@ -675,7 +685,28 @@
             document.getElementById('screen-game').classList.add('hidden');
             document.getElementById('screen-waiting').classList.remove('hidden');
 
+            startSubmissionSync();
             checkIfBothSubmitted();
+        }
+
+        function startSubmissionSync() {
+            stopSubmissionSync();
+            if (!mySubmission || submissionAcknowledged) return;
+            submissionSyncInterval = window.setInterval(() => {
+                if (!mySubmission || submissionAcknowledged) {
+                    stopSubmissionSync();
+                    return;
+                }
+                if (!channelReady) return;
+                broadcastSubmission(false);
+            }, 2000);
+        }
+
+        function stopSubmissionSync() {
+            if (submissionSyncInterval !== null) {
+                window.clearInterval(submissionSyncInterval);
+                submissionSyncInterval = null;
+            }
         }
 
         async function broadcastSubmission(showError = true) {
@@ -687,6 +718,7 @@
                     payload: mySubmission
                 });
                 if (status === 'ok') return true;
+                console.error("Échec de l'envoi Broadcast, statut :", status);
                 if (showError) showModal("Envoi impossible", "Votre plateau n'a pas pu être envoyé. Vérifiez votre connexion puis réessayez.");
                 return false;
             } catch (error) {
@@ -699,7 +731,28 @@
         function handleOpponentSubmission(payload) {
             if (!payload || payload.sender === clientId || !payload.clues || !Array.isArray(payload.solution) || !Array.isArray(payload.tiles)) return;
             opponentSubmission = payload;
+            acknowledgeSubmission(payload.sender);
             checkIfBothSubmitted();
+        }
+
+        async function acknowledgeSubmission(sender) {
+            if (!channel || !channelReady) return;
+            try {
+                const status = await channel.send({
+                    type: 'broadcast',
+                    event: 'player-submit-ack',
+                    payload: { sender: clientId, received: sender }
+                });
+                if (status !== 'ok') console.error("Échec de l'accusé de réception Broadcast, statut :", status);
+            } catch (error) {
+                console.error("Échec de l'accusé de réception Broadcast :", error);
+            }
+        }
+
+        function handleSubmissionAck(payload) {
+            if (!payload || payload.sender === clientId || payload.received !== clientId || !mySubmission) return;
+            submissionAcknowledged = true;
+            stopSubmissionSync();
         }
 
         function checkIfBothSubmitted() {

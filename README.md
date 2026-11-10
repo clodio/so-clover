@@ -14,6 +14,6 @@ Dans **Settings → Pages**, choisissez **GitHub Actions** comme source de dépl
 
 ## Multijoueur et Supabase
 
-Les joueurs utilisent Supabase Realtime Broadcast et Presence sur un canal public nommé à partir du code du salon. Aucune table ni migration SQL n’est nécessaire. Les propositions sont conservées uniquement en mémoire pendant la session et sont renvoyées à l’arrivée du second joueur.
+Les joueurs utilisent Supabase Realtime Broadcast et Presence sur un canal public nommé à partir du code du salon. Aucune table ni migration SQL n’est nécessaire. Les propositions sont conservées uniquement en mémoire pendant la session et renvoyées jusqu’à ce que l’autre joueur les reçoive, afin de tolérer une course de connexion.
 
 La clé utilisée dans le navigateur doit être une clé publique `publishable` (ou `anon`) ; ne placez jamais de clé `secret` ou `service_role` dans le site. Les personnes ayant le code du salon peuvent rejoindre et recevoir les plateaux de cette partie.
