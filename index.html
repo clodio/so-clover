@@ -1,165 +1,521 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>So Clover ! - Édition Numérique</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>So Clover ! - Édition Web</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Supabase Client -->
+    <!-- Supabase JS Client v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
-        body { font-family: 'Fredoka', sans-serif; }
+        body {
+            font-family: 'Fredoka', cursive, sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .clover-board {
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4);
+        }
+        .tile-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .tile-card.selected {
+            ring: 4px;
+            ring-color: #34d399;
+        }
     </style>
 </head>
-<body class="bg-emerald-950 text-emerald-100 min-h-screen flex flex-col items-center justify-between p-4">
+<body class="bg-emerald-950 text-emerald-100 min-h-screen flex flex-col items-center justify-between p-2 sm:p-4">
 
-    <div id="app" class="w-full max-w-4xl mx-auto flex flex-col items-center flex-grow justify-center">
-        <h1 class="text-4xl font-bold text-emerald-400 mb-2 tracking-wide">SO CLOVER !</h1>
-        <p class="text-emerald-300/80 mb-8 text-sm">Le jeu coopératif de mots et d'association</p>
+    <!-- Header & Navigation -->
+    <header class="w-full max-w-2xl flex justify-between items-center bg-emerald-900/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-emerald-700/50 mb-2">
+        <div class="flex items-center space-x-2">
+            <span class="text-2xl">🍀</span>
+            <h1 class="text-xl sm:text-2xl font-bold tracking-wide text-emerald-400">So Clover !</h1>
+        </div>
+        <div id="room-info" class="hidden text-xs sm:text-sm bg-emerald-950/80 px-3 py-1.5 rounded-xl border border-emerald-600/40 flex items-center gap-2">
+            <span>Salon: <strong id="display-room-code" class="text-emerald-300 font-mono">---</strong></span>
+            <button id="btn-copy-link" onclick="copyGameLink()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-0.5 rounded text-xs transition">📋 Copier</button>
+        </div>
+    </header>
 
-        <!-- Écran d'accueil / Menu -->
-        <div id="menu-screen" class="bg-emerald-900/60 p-6 rounded-2xl shadow-xl border border-emerald-700/50 w-full max-w-md flex flex-col gap-4">
-            <h2 class="text-xl font-semibold text-emerald-200 text-center mb-2">Menu Principal</h2>
-            
-            <div>
-                <label class="block text-sm font-medium text-emerald-300 mb-1">Difficulté (Cartes pièges) :</label>
-                <select id="difficulty-select" class="w-full bg-emerald-950 border border-emerald-700 rounded-lg p-2.5 text-emerald-100 focus:outline-none focus:border-emerald-400">
-                    <option value="1">Facile (1 carte piège)</option>
-                    <option value="2" selected>Normal (2 cartes pièges)</option>
-                    <option value="3">Difficile (3 cartes pièges)</option>
-                </select>
+    <main class="w-full max-w-2xl flex-grow flex flex-col items-center justify-center relative">
+
+        <!-- ================= ECRAN D'ACCUEIL / MENU ================= -->
+        <div id="screen-menu" class="w-full max-w-md bg-emerald-900/80 p-6 rounded-3xl border border-emerald-700 shadow-2xl flex flex-col gap-5">
+            <div class="text-center">
+                <p class="text-emerald-300/80 text-sm">Jeu d'association de mots coopératif</p>
             </div>
 
-            <button id="btn-create-game" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition transform active:scale-95">
-                Créer une nouvelle partie
-            </button>
+            <!-- Paramètres création -->
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-emerald-300 mb-1">Nombre de cartes pièges (Phase résolution)</label>
+                    <select id="select-traps" class="w-full bg-emerald-950 border border-emerald-700 rounded-xl p-3 text-emerald-100 focus:outline-none focus:border-emerald-400">
+                        <option value="1">1 carte piège supplémentaires</option>
+                        <option value="2" selected>2 cartes pièges supplémentaires (Standard)</option>
+                        <option value="3">3 cartes pièges supplémentaires (Expert)</option>
+                    </select>
+                </div>
 
-            <div class="relative flex py-2 items-center">
-                <div class="flex-grow border-t border-emerald-700"></div>
-                <span class="flex-shrink mx-4 text-emerald-400 text-sm">ou rejoindre</span>
-                <div class="flex-grow border-t border-emerald-700"></div>
+                <button id="btn-create" onclick="createGame()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold py-3.5 px-4 rounded-xl shadow-lg transition active:scale-95 text-lg">
+                    🍀 Créer une partie
+                </button>
+            </div>
+
+            <div class="flex items-center my-1">
+                <div class="flex-grow border-t border-emerald-700/60"></div>
+                <span class="px-3 text-xs text-emerald-400 font-semibold uppercase">ou rejoindre</span>
+                <div class="flex-grow border-t border-emerald-700/60"></div>
             </div>
 
             <div class="flex gap-2">
-                <input type="text" id="input-room-code" placeholder="Code du salon (ex: AB12)" class="flex-grow bg-emerald-950 border border-emerald-700 rounded-lg p-2.5 text-emerald-100 uppercase tracking-widest text-center focus:outline-none focus:border-emerald-400">
-                <button id="btn-join-game" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl transition">
+                <input type="text" id="input-room" placeholder="CODE SALON" class="flex-grow bg-emerald-950 border border-emerald-700 rounded-xl p-3 text-center text-emerald-100 font-mono uppercase tracking-widest focus:outline-none focus:border-emerald-400">
+                <button onclick="joinGameFromInput()" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-5 py-3 rounded-xl transition active:scale-95">
                     Rejoindre
                 </button>
             </div>
         </div>
 
-        <!-- Écran de jeu (masqué par défaut) -->
-        <div id="game-screen" class="hidden w-full flex flex-col items-center">
-            <div id="status-bar" class="bg-emerald-900/80 px-4 py-2 rounded-lg border border-emerald-700 mb-4 text-sm flex justify-between w-full max-w-xl">
-                <span>Salon : <strong id="room-code-display" class="text-emerald-400"></strong></span>
-                <span id="game-status-text" class="text-emerald-300">En attente...</span>
+        <!-- ================= ECRAN DE JEU ================= -->
+        <div id="screen-game" class="hidden w-full flex flex-col items-center">
+            
+            <!-- Bandeau de statut -->
+            <div id="game-status-banner" class="w-full bg-emerald-900/90 text-center py-2 px-4 rounded-xl border border-emerald-700/70 mb-3 font-semibold text-emerald-200 text-sm shadow">
+                Chargement de la partie...
             </div>
-            <div id="game-board-container" class="w-full flex justify-center">
-                <!-- Le plateau de jeu sera injecté ici -->
+
+            <!-- Zone Plateau de Trèfle (4 emplacements : 0, 1, 2, 3) -->
+            <div id="clover-container" class="relative w-[340px] h-[340px] sm:w-[380px] sm:h-[380px] my-2 transition-transform duration-300 flex items-center justify-center">
+                
+                <!-- Le Trèfle (Fond) -->
+                <div class="absolute inset-0 bg-emerald-800 rounded-3xl border-4 border-emerald-600 shadow-2xl flex flex-col items-center justify-between p-4 clover-board">
+                    
+                    <!-- Indice HAUT -->
+                    <div class="w-full text-center z-10">
+                        <input type="text" id="clue-top" placeholder="Indice Haut" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-48 text-sm focus:outline-none focus:border-emerald-300" onchange="syncClues()">
+                    </div>
+
+                    <!-- Ligne Centrale (Gauche / Plateau 2x2 / Droite) -->
+                    <div class="w-full flex justify-between items-center z-10">
+                        <input type="text" id="clue-left" placeholder="Indice Gauche" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-24 text-sm focus:outline-none focus:border-emerald-300" onchange="syncClues()">
+
+                        <!-- Grille 2x2 pour les 4 tuiles du trèfle -->
+                        <div class="grid grid-cols-2 gap-2 w-[220px] h-[220px] sm:w-[240px] sm:h-[240px] bg-emerald-900/80 p-2 rounded-2xl border-2 border-emerald-600/60 shadow-inner">
+                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center" data-slot="0" onclick="handleSlotClick(0)"></div>
+                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center" data-slot="1" onclick="handleSlotClick(1)"></div>
+                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center" data-slot="2" onclick="handleSlotClick(2)"></div>
+                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center" data-slot="3" onclick="handleSlotClick(3)"></div>
+                        </div>
+
+                        <input type="text" id="clue-right" placeholder="Indice Droite" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-24 text-sm focus:outline-none focus:border-emerald-300" onchange="syncClues()">
+                    </div>
+
+                    <!-- Indice BAS -->
+                    <div class="w-full text-center z-10">
+                        <input type="text" id="clue-bottom" placeholder="Indice Bas" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-48 text-sm focus:outline-none focus:border-emerald-300" onchange="syncClues()">
+                    </div>
+                </div>
             </div>
+
+            <!-- Commandes plateau & actions -->
+            <div class="flex flex-wrap items-center justify-center gap-2 my-3 w-full max-w-md">
+                <button onclick="rotateBoard()" class="bg-emerald-800 hover:bg-emerald-700 text-white font-semibold px-3 py-2 rounded-xl text-sm border border-emerald-600 flex items-center gap-1 active:scale-95 transition">
+                    🔄 Pivoter plateau (90°)
+                </button>
+
+                <button id="btn-submit-clues" onclick="submitClues()" class="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold px-4 py-2 rounded-xl text-sm shadow transition active:scale-95">
+                    🚀 Envoyer mon plateau
+                </button>
+
+                <button id="btn-verify" onclick="verifySolution()" class="hidden bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-4 py-2 rounded-xl text-sm shadow transition active:scale-95">
+                    ✅ Vérifier la réponse
+                </button>
+            </div>
+
+            <!-- Réserve de cartes disponibles pour la résolution -->
+            <div id="reserve-section" class="w-full max-w-md bg-emerald-900/60 p-3 rounded-2xl border border-emerald-700/50 mt-1">
+                <div class="flex justify-between items-center mb-2 px-1">
+                    <span class="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Cartes disponibles</span>
+                    <span class="text-[11px] text-emerald-400/80">Cliquez/Tap pour placer ou pivoter (🔄)</span>
+                </div>
+                <div id="deck-reserve" class="flex flex-wrap justify-center gap-2 min-h-[90px]">
+                    <!-- Tuiles injectées dynamiquement -->
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Modal d'attente / résultat -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div id="modal-content" class="bg-emerald-900 border border-emerald-600 p-6 rounded-3xl max-w-sm w-full text-center shadow-2xl space-y-4">
+            <h3 id="modal-title" class="text-xl font-bold text-emerald-300">En attente de l'autre joueur...</h3>
+            <p id="modal-body" class="text-emerald-200 text-sm">Vos indices ont été envoyés. Lorsque le second joueur enverra son plateau, vous pourrez résoudre son énigme !</p>
+            <button onclick="closeModal()" class="bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">Fermer</button>
         </div>
     </div>
 
-    <footer class="mt-8 text-xs text-emerald-500/60">
-        So Clover ! Web Edition &bull; Hébergé sur GitHub Pages
-    </footer>
-
+    <!-- Script Supabase & Logique du Jeu -->
     <script>
-        // Configuration Supabase
+        // Configuration Supabase identique à Letter Up
         const SUPABASE_URL = "https://ckvqujwxzlpdfwxbuqno.supabase.co";
         const SUPABASE_KEY = "sb_publishable__8RopAM6dop73hqiygWiTQ_PH9riFog";
-        
-        let supabaseClient;
-        try {
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        } catch (e) {
-            console.error("Erreur d'initialisation de Supabase :", e);
-        }
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // Générateur de code de salon aléatoire
-        function generateRoomCode() {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            let code = '';
-            for (let i = 0; i < 4; i++) {
-                code += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return code;
-        }
+        // Dictionnaire de 120 cartes (4 mots par carte) inspiré de la version française
+        const WORDS_DATABASE = [
+            ["POISSON", "CHAT", "EAU", "NAGE"], ["SOLEIL", "PLAGE", "CHALEUR", "ETE"],
+            ["ARBRE", "FORET", "BOIS", "VERT"], ["VOITURE", "ROUE", "MOTEUR", "VITESSE"],
+            ["LIVRE", "PAGE", "LECTURE", "ROMAN"], ["CAFE", "MATIN", "TASSE", "CHAUD"],
+            ["AVION", "CIEL", "VOL", "VOYAGE"], ["MUSIQUE", "NOTE", "GUITARE", "SON"],
+            ["FLEUR", "JARDIN", "PARFUM", "ROSE"], ["MONTAGNE", "NEIGE", "SOMMET", "FROID"],
+            ["PORTE", "CLE", "MAISON", "ENTREE"], ["NUIT", "LUNE", "ETOILE", "RÊVE"],
+            ["PAIN", "BOULANGER", "FARINE", "TABLE"], ["POMME", "FRUIT", "ARBRE", "ROUGE"],
+            ["CHIEN", "ANIMAL", "ABOIEMENT", "AMIS"], ["PLUIE", "NUAGE", "ORAGE", "PARAPLUIE"],
+            ["FEU", "FLAMME", "CHALEUR", "FUMEE"], ["OR", "TRESOR", "PIECE", "RICHE"],
+            ["HORLOGE", "TEMPS", "HEURE", "MONTRE"], ["GLACE", "FROID", "CHOCOLAT", "CREME"],
+            ["MER", "VAGUE", "BATEAU", "BLEU"], ["CIEUX", "ANGE", "BLEU", "OISEAU"],
+            ["ROI", "COURONNE", "CHATEAU", "REINE"], ["PIANO", "TOUCHE", "CONCERT", "BLANC"],
+            ["ROBOT", "ACIER", "FUTUR", "MACHINE"], ["CINEMA", "FILM", "ECRAN", "ACTEUR"],
+            ["TRAIN", "RAIL", "GARE", "VOYAGE"], ["VENT", "AIR", "SOUFFLE", "TEMPÊTE"],
+            ["FOOTBALL", "BALLON", "STADE", "BUT"], ["MIROIR", "REFLET", "VERRE", "IMAGE"],
+            ["SERPENT", "VENIN", "JUNGLE", "REPTILE"], ["Espace", "LUNE", "FUSEE", "TETEBEN"],
+            ["CHOCOLAT", "SUCRE", "NOIR", "GOURMAND"], ["VAMPIRE", "SANG", "NUIT", "DENTS"],
+            ["AMOUR", "CŒUR", "ROUGE", "PASSION"], ["SECRET", "MYSTERE", "CODE", "CACHE"],
+            ["JEU", "DES", "PLATEAU", "VICTOIRE"], ["PIRATE", "BATEAU", "CANON", "ILE"]
+        ];
 
-        // Gestion des clics sur les boutons
-        document.addEventListener('DOMContentLoaded', () => {
-            const btnCreate = document.getElementById('btn-create-game');
-            const btnJoin = document.getElementById('btn-join-game');
-            const inputRoom = document.getElementById('input-room-code');
+        // État de l'application
+        let roomCode = "";
+        let channel = null;
+        let myRole = "player1"; // ou player2
+        let boardRotation = 0;
+        let trapCardsCount = 2;
 
-            if (btnCreate) {
-                btnCreate.addEventListener('click', async () => {
-                    const roomCode = generateRoomCode();
-                    const difficulty = document.getElementById('difficulty-select').value;
-                    
-                    console.log(`Création du salon ${roomCode} avec la difficulté ${difficulty}`);
+        // État de la grille du trèfle (4 slots)
+        // Chaqu'un contient { card: [...4mots], rot: 0..3 }
+        let currentBoardCards = [null, null, null, null];
+        let originalSolution = [null, null, null, null]; // Pour vérification
+        let reserveCards = [];
+        let selectedReserveIndex = null;
+        let isResolutionPhase = false;
 
-                    // Optionnel : Enregistrer la partie dans Supabase si la table 'games' existe
-                    if (supabaseClient) {
-                        try {
-                            const { error } = await supabaseClient
-                                .from('games')
-                                .insert([{ room_code: roomCode, difficulty: parseInt(difficulty), status: 'waiting' }]);
-                            if (error) console.warn("Attention (table Supabase absente ou non configurée) :", error.message);
-                        } catch (err) {
-                            console.error("Erreur réseau Supabase :", err);
-                        }
-                    }
-
-                    // Mettre à jour l'URL et afficher l'écran de jeu
-                    const newUrl = `${window.location.pathname}?room=${roomCode}`;
-                    window.history.pushState({ room: roomCode }, '', newUrl);
-                    
-                    showGameScreen(roomCode);
-                });
-            }
-
-            if (btnJoin && inputRoom) {
-                btnJoin.addEventListener('click', () => {
-                    const code = inputRoom.value.trim().toUpperCase();
-                    if (code.length === 4) {
-                        const newUrl = `${window.location.pathname}?room=${code}`;
-                        window.history.pushState({ room: code }, '', newUrl);
-                        showGameScreen(code);
-                    } else {
-                        alert("Veuillez entrer un code de salon valide à 4 caractères.");
-                    }
-                });
-            }
-
-            // Vérifier si une URL contient déjà un paramètre ?room=XXXX au chargement
+        // Init
+        window.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
-            const roomParam = urlParams.get('room');
-            if (roomParam) {
-                showGameScreen(roomParam);
+            const room = urlParams.get('room');
+            if (room) {
+                joinRoom(room.toUpperCase());
             }
         });
 
-        function showGameScreen(roomCode) {
-            document.getElementById('menu-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-            document.getElementById('room-code-display').textContent = roomCode;
-            document.getElementById('game-status-text').textContent = "Phase 1 : Choix des indices";
+        // Génération de code de salon aléatoire
+        function generateCode() {
+            return Math.random().toString(36).substring(2, 6).toUpperCase();
+        }
+
+        function createGame() {
+            roomCode = generateCode();
+            trapCardsCount = parseInt(document.getElementById('select-traps').value);
+            const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            window.history.pushState({ room: roomCode }, '', newUrl);
+            myRole = "player1";
+            initRoom();
+        }
+
+        function joinGameFromInput() {
+            const input = document.getElementById('input-room').value.trim().toUpperCase();
+            if (input.length >= 3) {
+                roomCode = input;
+                const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+                window.history.pushState({ room: roomCode }, '', newUrl);
+                myRole = "player2";
+                initRoom();
+            }
+        }
+
+        function joinRoom(code) {
+            roomCode = code;
+            myRole = "player2";
+            initRoom();
+        }
+
+        // Connexion au canal Broadcast Supabase Realtime
+        function initRoom() {
+            document.getElementById('screen-menu').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+            document.getElementById('room-info').classList.remove('hidden');
+            document.getElementById('display-room-code').textContent = roomCode;
+
+            document.getElementById('game-status-banner').textContent = "Phase 1 : Remplissez vos indices pour le trèfle !";
+
+            // Nettoyage éventuel du canal existant
+            if (channel) supabaseClient.removeChannel(channel);
+
+            channel = supabaseClient.channel(`so-clover-${roomCode}`, {
+                config: { broadcast: { self: false } }
+            });
+
+            channel.on('broadcast', { event: 'player-submit' }, payload => {
+                handleOpponentSubmission(payload.payload);
+            });
+
+            channel.subscribe(status => {
+                if (status === 'SUBSCRIBED') {
+                    console.log("Connecté au canal temps réel Supabase avec succès !");
+                }
+            });
+
+            generateInitialBoard();
+        }
+
+        // Tirage aléatoire de 4 cartes pour composer le trèfle de départ
+        function generateInitialBoard() {
+            const shuffled = [...WORDS_DATABASE].sort(() => 0.5 - Math.random());
+            currentBoardCards = [];
             
-            // Exemple de rendu visuel de base du plateau
-            const container = document.getElementById('game-board-container');
-            container.innerHTML = `
-                <div class="bg-emerald-900/40 border border-emerald-700 p-6 rounded-xl text-center max-w-md w-full">
-                    <p class="text-emerald-200 mb-4">Salon actif : <span class="font-bold text-emerald-400">${roomCode}</span></p>
-                    <p class="text-sm text-emerald-300/80 mb-6">Partagez l'URL actuelle de votre navigateur à vos coéquipiers pour les faire rejoindre ce salon !</p>
-                    <button onclick="navigator.clipboard.writeText(window.location.href); alert('Lien copié dans le presse-papier !');" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg w-full">
-                        Copier le lien d'invitation
-                    </button>
+            for(let i = 0; i < 4; i++) {
+                currentBoardCards.push({
+                    words: shuffled[i],
+                    rot: Math.floor(Math.random() * 4) // Rotation initiale aléatoire
+                });
+            }
+
+            // Conserver la solution exacte
+            originalSolution = JSON.parse(JSON.stringify(currentBoardCards));
+
+            // Préparer la réserve de tuiles pièges
+            reserveCards = [];
+            const extraCount = trapCardsCount;
+            for(let i = 4; i < 4 + extraCount; i++) {
+                reserveCards.push({
+                    words: shuffled[i],
+                    rot: Math.floor(Math.random() * 4)
+                });
+            }
+
+            renderBoard();
+        }
+
+        // Rendu du plateau de trèfle
+        function renderBoard() {
+            const slots = document.querySelectorAll('.board-slot');
+            slots.forEach((slot, index) => {
+                slot.innerHTML = '';
+                const cardData = currentBoardCards[index];
+
+                if (cardData) {
+                    const cardEl = createCardDOM(cardData, index, false);
+                    slot.appendChild(cardEl);
+                }
+            });
+
+            renderReserve();
+        }
+
+        // Création de l'élément DOM d'une carte (4 mots aux 4 bords)
+        function createCardDOM(cardData, index, isReserve) {
+            const card = document.createElement('div');
+            card.className = `tile-card relative w-full h-full bg-emerald-100 text-emerald-950 rounded-xl shadow-md p-1 flex flex-col justify-between items-center cursor-pointer border-2 ${selectedReserveIndex === index && isReserve ? 'border-amber-400 ring-4 ring-amber-300' : 'border-emerald-700'}`;
+            
+            card.style.transform = `rotate(${cardData.rot * 90}deg)`;
+
+            const words = cardData.words;
+            card.innerHTML = `
+                <div class="text-[10px] sm:text-xs font-bold uppercase truncate max-w-[90%] text-emerald-800">${words[0]}</div>
+                <div class="w-full flex justify-between items-center text-[10px] sm:text-xs font-bold uppercase text-emerald-800">
+                    <span class="-rotate-90 origin-center truncate max-w-[40px]">${words[3]}</span>
+                    <span class="rotate-90 origin-center truncate max-w-[40px]">${words[1]}</span>
                 </div>
+                <div class="text-[10px] sm:text-xs font-bold uppercase truncate max-w-[90%] text-emerald-800">${words[2]}</div>
             `;
+
+            // Clic sur une tuile
+            card.onclick = (e) => {
+                e.stopPropagation();
+                if (isResolutionPhase) {
+                    if (isReserve) {
+                        // Sélectionner ou faire pivoter dans la réserve
+                        if (selectedReserveIndex === index) {
+                            cardData.rot = (cardData.rot + 1) % 4;
+                        } else {
+                            selectedReserveIndex = index;
+                        }
+                        renderBoard();
+                    } else {
+                        // Cliquer sur une tuile du plateau pour la faire pivoter ou la retirer
+                        cardData.rot = (cardData.rot + 1) % 4;
+                        renderBoard();
+                    }
+                }
+            };
+
+            return card;
+        }
+
+        // Rendu de la réserve des tuiles non placées
+        function renderReserve() {
+            const container = document.getElementById('deck-reserve');
+            container.innerHTML = '';
+
+            reserveCards.forEach((cardData, idx) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = "w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0";
+                const cardEl = createCardDOM(cardData, idx, true);
+                wrapper.appendChild(cardEl);
+                container.appendChild(wrapper);
+            });
+        }
+
+        // Gestion du placement d'une tuile dans un emplacement 2x2
+        function handleSlotClick(slotIndex) {
+            if (!isResolutionPhase) return;
+
+            if (selectedReserveIndex !== null && reserveCards[selectedReserveIndex]) {
+                // Placer la tuile sélectionnée de la réserve dans le slot
+                const cardToPlace = reserveCards.splice(selectedReserveIndex, 1)[0];
+                if (currentBoardCards[slotIndex]) {
+                    reserveCards.push(currentBoardCards[slotIndex]);
+                }
+                currentBoardCards[slotIndex] = cardToPlace;
+                selectedReserveIndex = null;
+                renderBoard();
+            } else if (currentBoardCards[slotIndex]) {
+                // Si aucune sélection dans la réserve, retirer la tuile du plateau pour la renvoyer en réserve
+                reserveCards.push(currentBoardCards[slotIndex]);
+                currentBoardCards[slotIndex] = null;
+                renderBoard();
+            }
+        }
+
+        // Rotation globale du plateau de 90°
+        function rotateBoard() {
+            boardRotation = (boardRotation + 90) % 360;
+            document.getElementById('clover-container').style.transform = `rotate(${boardRotation}deg)`;
+        }
+
+        // Synchronisation locale des mots d'indices
+        function syncClues() {
+            // Prêt pour d'éventuelles vérifications
+        }
+
+        // Phase 1 -> Soumission des indices et envoi au partenaire
+        function submitClues() {
+            const clues = {
+                top: document.getElementById('clue-top').value.trim(),
+                bottom: document.getElementById('clue-bottom').value.trim(),
+                left: document.getElementById('clue-left').value.trim(),
+                right: document.getElementById('clue-right').value.trim()
+            };
+
+            if (!clues.top || !clues.bottom || !clues.left || !clues.right) {
+                alert("Veuillez remplir les 4 mots indices avant d'envoyer votre plateau !");
+                return;
+            }
+
+            // Préparer toutes les tuiles disponibles (les 4 bonnes + pièges) en mélangeant positions et rotations
+            const allTiles = [...originalSolution, ...reserveCards].sort(() => 0.5 - Math.random());
+            allTiles.forEach(t => t.rot = Math.floor(Math.random() * 4));
+
+            const payload = {
+                sender: myRole,
+                clues: clues,
+                tiles: allTiles,
+                solution: originalSolution
+            };
+
+            // Envoi via canal Supabase Realtime Broadcast
+            if (channel) {
+                channel.send({
+                    type: 'broadcast',
+                    event: 'player-submit',
+                    payload: payload
+                });
+            }
+
+            // Désactiver la saisie locale et afficher la modale
+            document.querySelectorAll('.clue-input').forEach(i => i.disabled = true);
+            document.getElementById('btn-submit-clues').disabled = true;
+            document.getElementById('btn-submit-clues').classList.add('opacity-50');
+
+            showModal("Plateau envoyé !", "Vos indices ont été transmis à l'autre joueur. En attente de son plateau pour démarrer la résolution...");
+        }
+
+        // Réception du plateau du partenaire (Phase 2 : Résolution)
+        function handleOpponentSubmission(payload) {
+            closeModal();
+            isResolutionPhase = true;
+
+            document.getElementById('game-status-banner').textContent = "Phase 2 : Résolvez l'énigme ! Placez et orientez les tuiles correctement.";
+            document.getElementById('btn-submit-clues').classList.add('hidden');
+            document.getElementById('btn-verify').classList.remove('hidden');
+
+            // Charger les indices du partenaire
+            document.getElementById('clue-top').value = payload.clues.top;
+            document.getElementById('clue-bottom').value = payload.clues.bottom;
+            document.getElementById('clue-left').value = payload.clues.left;
+            document.getElementById('clue-right').value = payload.clues.right;
+            document.querySelectorAll('.clue-input').forEach(i => i.disabled = true);
+
+            // Charger la solution cible & réinitialiser le plateau pour le joueur
+            originalSolution = payload.solution;
+            currentBoardCards = [null, null, null, null];
+            reserveCards = payload.tiles;
+            selectedReserveIndex = null;
+
+            renderBoard();
+        }
+
+        // Validation de la solution soumise
+        function verifySolution() {
+            let correctCount = 0;
+            const slots = document.querySelectorAll('.board-slot');
+
+            currentBoardCards.forEach((placed, idx) => {
+                const target = originalSolution[idx];
+                const slotEl = slots[idx];
+
+                if (placed && target && isSameCard(placed.words, target.words) && (placed.rot % 4 === target.rot % 4)) {
+                    correctCount++;
+                    slotEl.classList.remove('border-red-500', 'border-emerald-600/40');
+                    slotEl.classList.add('border-green-400', 'ring-4', 'ring-green-400/50');
+                } else {
+                    slotEl.classList.remove('border-green-400', 'border-emerald-600/40');
+                    slotEl.classList.add('border-red-500', 'ring-4', 'ring-red-500/50');
+                }
+            });
+
+            if (correctCount === 4) {
+                showModal("🏆 Victoire !", "Bravo ! Vous avez correctement placé et orienté toutes les tuiles sur le trèfle ! Score parfait : 6 points !");
+            } else {
+                showModal("Résultat", `${correctCount} tuile(s) bien positionnée(s) sur 4. Ajustez les tuiles encadrées en rouge et tentez de corriger la rotation !`);
+            }
+        }
+
+        function isSameCard(wordsA, wordsB) {
+            return JSON.stringify(wordsA) === JSON.stringify(wordsB);
+        }
+
+        // Modale générique
+        function showModal(title, text) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').textContent = text;
+            document.getElementById('modal-overlay').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+
+        function copyGameLink() {
+            navigator.clipboard.writeText(window.location.href);
+            alert("Lien d'invitation copié dans le presse-papier !");
         }
     </script>
 </body>
