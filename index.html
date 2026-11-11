@@ -245,7 +245,7 @@
                 <button id="btn-verify" onclick="verifySolution()" class="hidden bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow transition active:scale-95">
                     ✅ Vérifier la réponse
                 </button>
-                <button id="btn-skip-puzzle" onclick="loadNextHistoryBoard()" class="hidden bg-sky-600 hover:bg-sky-500 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow transition active:scale-95">
+                <button id="btn-skip-puzzle" onclick="confirmSkipPuzzle()" class="hidden bg-sky-600 hover:bg-sky-500 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow transition active:scale-95">
                     ⏭ Passer cette énigme
                 </button>
             </div>
@@ -272,6 +272,7 @@
             <p id="modal-body" class="text-emerald-200 text-sm">Message...</p>
             <div class="flex flex-wrap justify-center gap-2">
                 <button id="modal-close" onclick="closeModal()" class="bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">Fermer</button>
+                <button id="modal-confirm-skip" onclick="loadNextHistoryBoard()" class="hidden bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2 rounded-xl text-sm transition">Oui, passer</button>
                 <button id="modal-next-puzzle" onclick="loadNextHistoryBoard()" class="hidden bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold px-4 py-2 rounded-xl text-sm transition">Résoudre une autre énigme</button>
                 <button id="modal-home" onclick="backToHome()" class="hidden bg-emerald-800 hover:bg-emerald-700 text-emerald-100 font-semibold px-4 py-2 rounded-xl text-sm transition">Retourner à l'accueil</button>
             </div>
@@ -503,6 +504,18 @@
                 return;
             }
             loadBoardFromHistory(nextBoard.historyId);
+            closeModal();
+        }
+
+        function confirmSkipPuzzle() {
+            const hasNextBoard = getBoardHistory().some(board => board.historyId !== activeHistoryId);
+            if (!hasNextBoard) {
+                loadNextHistoryBoard();
+                return;
+            }
+            showModal("Passer cette énigme ?", "Votre progression sur ce plateau sera abandonnée. Voulez-vous charger une autre énigme ?");
+            document.getElementById('modal-close').textContent = "Annuler";
+            document.getElementById('modal-confirm-skip').classList.remove('hidden');
         }
 
         function generateCode() {
@@ -1202,6 +1215,8 @@
             document.getElementById('modal-title').textContent = title;
             document.getElementById('modal-body').textContent = text;
             document.getElementById('modal-close').classList.remove('hidden');
+            document.getElementById('modal-close').textContent = "Fermer";
+            document.getElementById('modal-confirm-skip').classList.add('hidden');
             document.getElementById('modal-next-puzzle').classList.add('hidden');
             document.getElementById('modal-home').classList.add('hidden');
             document.getElementById('modal-overlay').classList.remove('hidden');
