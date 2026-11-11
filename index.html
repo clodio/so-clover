@@ -30,7 +30,7 @@
         .clue-input {
             position: absolute;
             z-index: 2;
-            width: 42%;
+            width: 44%;
             height: 2.25rem;
             padding: 0.25rem 0.5rem;
             border: 1px solid rgb(16 185 129 / 50%);
@@ -50,24 +50,24 @@
             left: 50%;
             transform: translateX(-50%);
         }
-        .clue-top { top: 3%; }
-        .clue-bottom { bottom: 3%; }
+        .clue-top { top: 2%; }
+        .clue-bottom { bottom: 2%; }
         .clue-left, .clue-right {
             top: 50%;
         }
         .clue-left {
-            left: 8%;
+            left: 6%;
             transform: translate(-50%, -50%) rotate(-90deg);
         }
         .clue-right {
-            left: 92%;
+            left: 94%;
             transform: translate(-50%, -50%) rotate(90deg);
         }
         .clover-grid {
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 66%;
+            width: 74%;
             aspect-ratio: 1;
             transform: translate(-50%, -50%);
         }
@@ -77,27 +77,29 @@
         }
         .tile-word {
             position: absolute;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: grid;
+            place-items: center;
+            min-width: 0;
+            padding: 0 0.1em;
+            box-sizing: border-box;
             overflow-wrap: anywhere;
+            text-wrap: balance;
             text-align: center;
-            line-height: 1.05;
-            font-size: clamp(0.48rem, 2vw, 0.75rem);
+            line-height: 1;
+            font-size: clamp(0.6rem, 2.3vw, 1rem);
             font-weight: 700;
-            text-transform: uppercase;
         }
         .tile-word-top, .tile-word-bottom {
             left: 5%;
             width: 90%;
-            height: 22%;
+            height: 26%;
         }
         .tile-word-top { top: 3%; }
         .tile-word-bottom { bottom: 3%; }
         .tile-word-left, .tile-word-right {
             top: 50%;
             width: 78%;
-            height: 22%;
+            height: 26%;
         }
         .tile-word-left {
             left: -19%;
@@ -201,7 +203,7 @@
             </div>
 
             <!-- Zone Plateau de Trèfle (Grand format carré maximisé, indices gauche, droite et bas verticaux compacts) -->
-            <div id="clover-wrapper" class="w-full max-w-[560px] aspect-square relative my-1 transition-transform duration-300 flex items-center justify-center p-1">
+            <div id="clover-wrapper" class="w-full max-w-[640px] aspect-square relative my-1 transition-transform duration-300 flex items-center justify-center p-0.5">
                 <div id="clover-container" class="absolute inset-1 bg-emerald-800 rounded-3xl border-4 border-emerald-600 shadow-2xl clover-board transition-transform duration-300">
                     <input type="text" id="clue-top" placeholder="Indice Haut" aria-label="Indice haut" class="clue-input clue-top">
                     <input type="text" id="clue-bottom" placeholder="Indice Bas" aria-label="Indice bas" class="clue-input clue-bottom">
@@ -652,7 +654,7 @@
 
             reserveCards.forEach((cardData, idx) => {
                 const wrapper = document.createElement('div');
-                wrapper.className = "w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0";
+                wrapper.className = "w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0";
                 const cardEl = createCardDOM(cardData, idx, true);
                 wrapper.appendChild(cardEl);
                 container.appendChild(wrapper);
