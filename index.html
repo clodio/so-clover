@@ -298,6 +298,10 @@
         let channel = null;
         let clientId = "";
         let channelReady = false;
+        let isRoomCreator = false;
+        let roomValidated = false;
+        let roomValidationTimeout = null;
+        let opponentWaitTimeout = null;
         let playerName = "Joueur";
         let boardRotation = 0;
         let trapCardsCount = 2;
@@ -350,7 +354,9 @@
             const room = urlParams.get('room');
             if (room) {
                 document.getElementById('input-room').value = room.toUpperCase();
-                joinRoom(room.toUpperCase());
+                const isCreatorHistoryEntry = window.history.state?.room === room.toUpperCase()
+                    && window.history.state?.isRoomCreator === true;
+                joinRoom(room.toUpperCase(), isCreatorHistoryEntry);
             }
         });
 
@@ -376,9 +382,10 @@
                 return;
             }
             roomCode = generateCode();
+            isRoomCreator = true;
             trapCardsCount = parseInt(document.getElementById('select-traps').value);
             const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
-            window.history.pushState({ room: roomCode }, '', newUrl);
+            window.history.pushState({ room: roomCode, isRoomCreator: true }, '', newUrl);
             isDebugGame = false;
             initRoom();
         }
@@ -392,8 +399,9 @@
                     return;
                 }
                 roomCode = input;
+                isRoomCreator = false;
                 const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
-                window.history.pushState({ room: roomCode }, '', newUrl);
+                window.history.pushState({ room: roomCode, isRoomCreator: false }, '', newUrl);
                 isDebugGame = false;
                 initRoom();
             } else {
@@ -401,12 +409,13 @@
             }
         }
 
-        function joinRoom(code) {
+        function joinRoom(code, creator = false) {
             if (!supabaseClient) {
                 showModal("Connexion indisponible", "Supabase n'a pas pu être chargé. Vérifiez votre connexion puis rechargez la page.");
                 return;
             }
             roomCode = code;
+            isRoomCreator = creator;
             isDebugGame = false;
             initRoom();
         }
@@ -414,8 +423,12 @@
         function backToHome() {
             if (channel && supabaseClient) supabaseClient.removeChannel(channel);
             stopSubmissionSync();
+            stopRoomValidationTimeout();
+            stopOpponentWaitTimeout();
             channel = null;
             channelReady = false;
+            isRoomCreator = false;
+            roomValidated = false;
             isDebugGame = false;
             window.history.pushState({}, '', window.location.pathname);
             document.getElementById('screen-menu').classList.remove('hidden');
@@ -431,11 +444,17 @@
 
         function initRoom() {
             stopSubmissionSync();
+            stopRoomValidationTimeout();
+            stopOpponentWaitTimeout();
             document.getElementById('screen-menu').classList.add('hidden');
-            document.getElementById('screen-waiting').classList.add('hidden');
-            document.getElementById('screen-game').classList.remove('hidden');
+            document.getElementById('screen-waiting').classList.toggle('hidden', isRoomCreator);
+            document.getElementById('screen-game').classList.toggle('hidden', !isRoomCreator);
             document.getElementById('room-info').classList.remove('hidden');
             document.getElementById('display-room-code').textContent = roomCode;
+            if (!isRoomCreator) {
+                document.querySelector('#screen-waiting h3').textContent = "Vérification du salon...";
+                document.getElementById('waiting-text').textContent = "Connexion au salon en cours. Veuillez patienter quelques secondes.";
+            }
 
             document.getElementById('game-status-banner').textContent = `Phase 1 (${playerName}) : Remplissez vos 4 indices !`;
             document.getElementById('reserve-section').classList.add('hidden');
@@ -445,6 +464,7 @@
             submissionAcknowledged = false;
             isResolutionPhase = false;
             channelReady = false;
+            roomValidated = false;
             clientId = typeof crypto !== 'undefined' && crypto.randomUUID
                 ? crypto.randomUUID()
                 : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -463,6 +483,7 @@
                 handleSubmissionAck(payload.payload);
             });
             channel.on('presence', { event: 'sync' }, () => {
+                handleRoomPresenceSync();
                 const hasOpponent = Object.values(channel.presenceState())
                     .flat()
                     .some(presence => presence.clientId !== clientId);
@@ -474,11 +495,22 @@
             channel.subscribe(async status => {
                 if (status === 'SUBSCRIBED') {
                     channelReady = true;
-                    document.getElementById('btn-submit-clues').disabled = false;
                     try {
-                        const trackStatus = await channel.track({ clientId, name: playerName });
+                        const trackStatus = await channel.track({
+                            clientId,
+                            name: playerName,
+                            isHost: isRoomCreator
+                        });
                         if (trackStatus !== 'ok') {
                             showModal("Erreur de connexion", "Impossible de signaler votre présence dans le salon. Rechargez la page pour réessayer.");
+                            return;
+                        }
+                        if (isRoomCreator) {
+                            roomValidated = true;
+                            document.getElementById('btn-submit-clues').disabled = false;
+                        } else {
+                            startRoomValidationTimeout();
+                            handleRoomPresenceSync();
                         }
                     } catch (error) {
                         console.error("Échec du suivi de présence Supabase :", error);
@@ -486,12 +518,45 @@
                     }
                 } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                     channelReady = false;
+                    roomValidated = false;
                     document.getElementById('btn-submit-clues').disabled = true;
                     showModal("Erreur de connexion", "La connexion au salon a échoué. Vérifiez votre réseau puis rechargez la page.");
                 }
             });
 
             generateInitialBoard();
+        }
+
+        function handleRoomPresenceSync() {
+            if (!channel || !channelReady || isRoomCreator || roomValidated) return;
+            const hasHost = Object.values(channel.presenceState())
+                .flat()
+                .some(presence => presence.clientId !== clientId && presence.isHost === true);
+            if (!hasHost) return;
+
+            roomValidated = true;
+            stopRoomValidationTimeout();
+            document.getElementById('btn-submit-clues').disabled = false;
+            document.getElementById('screen-waiting').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+        }
+
+        function startRoomValidationTimeout() {
+            stopRoomValidationTimeout();
+            roomValidationTimeout = window.setTimeout(() => {
+                roomValidationTimeout = null;
+                handleRoomPresenceSync();
+                if (roomValidated) return;
+                backToHome();
+                showModal("Salon introuvable", "Ce salon n'existe pas ou n'est plus actif. Vérifiez le lien et demandez à l'hôte de créer un nouveau salon.");
+            }, 5000);
+        }
+
+        function stopRoomValidationTimeout() {
+            if (roomValidationTimeout !== null) {
+                window.clearTimeout(roomValidationTimeout);
+                roomValidationTimeout = null;
+            }
         }
 
         function startDebugResolution() {
@@ -502,6 +567,7 @@
             if (channel && supabaseClient) supabaseClient.removeChannel(channel);
             channel = null;
             channelReady = false;
+            roomValidated = true;
             mySubmission = null;
             opponentSubmission = null;
             isResolutionPhase = false;
@@ -783,7 +849,7 @@
                 return;
             }
 
-            if (!isDebugGame && (!channelReady || !channel)) {
+            if (!isDebugGame && (!channelReady || !channel || !roomValidated)) {
                 showModal("Connexion en cours", "Le salon n'est pas encore connecté. Réessayez dans quelques secondes.");
                 return;
             }
@@ -809,9 +875,28 @@
 
             document.getElementById('screen-game').classList.add('hidden');
             document.getElementById('screen-waiting').classList.remove('hidden');
+            document.querySelector('#screen-waiting h3').textContent = "En attente de l'autre joueur...";
+            document.getElementById('waiting-text').textContent = "Votre plateau a été transmis. La partie démarrera dès que votre coéquipier aura également envoyé son plateau.";
 
+            startOpponentWaitTimeout();
             startSubmissionSync();
             checkIfBothSubmitted();
+        }
+
+        function startOpponentWaitTimeout() {
+            stopOpponentWaitTimeout();
+            opponentWaitTimeout = window.setTimeout(() => {
+                opponentWaitTimeout = null;
+                backToHome();
+                showModal("Attente terminée", "L'autre joueur n'a pas envoyé son plateau dans les 10 minutes. La partie a été abandonnée.");
+            }, 10 * 60 * 1000);
+        }
+
+        function stopOpponentWaitTimeout() {
+            if (opponentWaitTimeout !== null) {
+                window.clearTimeout(opponentWaitTimeout);
+                opponentWaitTimeout = null;
+            }
         }
 
         function startSubmissionSync() {
@@ -891,6 +976,7 @@
                 showModal("Plateau invalide", "Les données reçues pour cette partie sont incomplètes.");
                 return;
             }
+            stopOpponentWaitTimeout();
             document.getElementById('screen-waiting').classList.add('hidden');
             document.getElementById('screen-game').classList.remove('hidden');
             isResolutionPhase = true;
