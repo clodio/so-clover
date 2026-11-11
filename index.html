@@ -24,6 +24,9 @@
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             touch-action: manipulation;
         }
+        .tile-card.is-dragging {
+            opacity: 0.5;
+        }
         .clue-input {
             position: absolute;
             z-index: 2;
@@ -232,7 +235,7 @@
             <div id="reserve-section" class="hidden w-full max-w-lg bg-emerald-900/60 p-2.5 rounded-2xl border border-emerald-700/50 mt-1">
                 <div class="flex justify-between items-center mb-1 px-1">
                     <span class="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Cartes disponibles (Pièges inclus)</span>
-                    <span class="text-[11px] text-emerald-400/80">Touchez pour pivoter, glissez pour placer</span>
+                    <span class="text-[11px] text-emerald-400/80">Touchez pour pivoter, appui long + glisser pour déplacer</span>
                 </div>
                 <div id="deck-reserve" class="flex flex-wrap justify-center gap-2 min-h-[90px]">
                     <!-- Tuiles injectées dynamiquement -->
@@ -555,9 +558,10 @@
             const card = document.createElement('div');
             card.className = `tile-card relative w-full h-full bg-emerald-100 text-emerald-950 rounded-xl shadow-md cursor-pointer border-2 aspect-square ${selectedReserveIndex === index && isReserve ? 'border-amber-400 ring-4 ring-amber-300' : 'border-emerald-700'}`;
             card.style.transform = `rotate(${cardData.rot * 90}deg)`;
+            card.style.touchAction = isResolutionPhase ? 'none' : 'manipulation';
             card.setAttribute('role', 'button');
             card.setAttribute('aria-label', `Carte ${cardData.words.join(', ')}, orientation ${cardData.rot * 90} degrés`);
-            card.draggable = Boolean(isReserve) && isResolutionPhase;
+            card.draggable = false;
 
             const words = cardData.words;
             ['tile-word-top', 'tile-word-right', 'tile-word-bottom', 'tile-word-left'].forEach((position, wordIndex) => {
@@ -567,8 +571,13 @@
                 card.appendChild(label);
             });
 
+            const gesture = { dragged: false };
             card.onclick = (e) => {
                 e.stopPropagation();
+                if (gesture.dragged) {
+                    gesture.dragged = false;
+                    return;
+                }
                 if (isResolutionPhase) {
                     if (isReserve) {
                         selectedReserveIndex = index;
@@ -578,14 +587,60 @@
                 }
             };
 
-            card.ondragstart = (event) => {
-                if (!isReserve || !isResolutionPhase) {
-                    event.preventDefault();
-                    return;
-                }
-                event.dataTransfer.setData('text/plain', String(index));
-                event.dataTransfer.effectAllowed = 'move';
-                selectedReserveIndex = index;
+            card.onpointerdown = (event) => {
+                if (!isResolutionPhase || (event.pointerType === 'mouse' && event.button !== 0)) return;
+
+                let longPressTimer = window.setTimeout(() => {
+                    gesture.dragged = true;
+                    gesture.dragging = true;
+                    card.classList.add('is-dragging');
+                    if (isReserve) selectedReserveIndex = index;
+                }, 350);
+                let startX = event.clientX;
+                let startY = event.clientY;
+
+                const cleanup = () => {
+                    window.clearTimeout(longPressTimer);
+                    document.removeEventListener('pointermove', onPointerMove);
+                    document.removeEventListener('pointerup', onPointerUp);
+                    document.removeEventListener('pointercancel', onPointerCancel);
+                    card.classList.remove('is-dragging');
+                };
+                const onPointerMove = (moveEvent) => {
+                    if (moveEvent.pointerId !== event.pointerId) return;
+                    if (!gesture.dragging && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 8) {
+                        cleanup();
+                        return;
+                    }
+                    if (gesture.dragging) moveEvent.preventDefault();
+                };
+                const onPointerUp = (upEvent) => {
+                    if (upEvent.pointerId !== event.pointerId) return;
+                    const wasDragging = gesture.dragging;
+                    cleanup();
+                    gesture.dragging = false;
+                    if (!wasDragging) return;
+
+                    const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
+                    const targetSlot = target?.closest('.board-slot');
+                    if (targetSlot) {
+                        moveCardOnBoard({ isReserve, index }, Number(targetSlot.dataset.slot));
+                    } else if (target?.closest('#reserve-section') && !isReserve) {
+                        moveCardToReserve(index);
+                    }
+                    window.setTimeout(() => {
+                        gesture.dragged = false;
+                    }, 0);
+                };
+                const onPointerCancel = () => {
+                    cleanup();
+                    gesture.dragging = false;
+                    gesture.dragged = false;
+                };
+
+                document.addEventListener('pointermove', onPointerMove, { passive: false });
+                document.addEventListener('pointerup', onPointerUp);
+                document.addEventListener('pointercancel', onPointerCancel);
             };
 
             return card;
@@ -634,10 +689,39 @@
             if (currentBoardCards[slotIndex]) reserveCards.push(currentBoardCards[slotIndex]);
             currentBoardCards[slotIndex] = cardToPlace;
             selectedReserveIndex = null;
+            clearSlotFeedback();
+            renderBoard();
+        }
+
+        function moveCardOnBoard(source, targetIndex) {
+            if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= currentBoardCards.length) return;
+            if (source.isReserve) {
+                if (reserveCards[source.index]) placeReserveCard(source.index, targetIndex);
+                return;
+            }
+            if (source.index === targetIndex || !currentBoardCards[source.index]) return;
+
+            const sourceCard = currentBoardCards[source.index];
+            currentBoardCards[source.index] = currentBoardCards[targetIndex];
+            currentBoardCards[targetIndex] = sourceCard;
+            selectedReserveIndex = null;
+            clearSlotFeedback();
+            renderBoard();
+        }
+
+        function moveCardToReserve(slotIndex) {
+            if (!currentBoardCards[slotIndex]) return;
+            reserveCards.push(currentBoardCards[slotIndex]);
+            currentBoardCards[slotIndex] = null;
+            selectedReserveIndex = null;
+            clearSlotFeedback();
+            renderBoard();
+        }
+
+        function clearSlotFeedback() {
             document.querySelectorAll('.board-slot').forEach(slot => {
                 slot.classList.remove('is-correct', 'is-incorrect');
             });
-            renderBoard();
         }
 
         function rotateBoard() {
