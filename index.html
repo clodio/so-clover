@@ -199,6 +199,7 @@
             <div class="text-4xl animate-bounce">⏳</div>
             <h3 class="text-xl font-bold text-emerald-300">En attente de l'autre joueur...</h3>
             <p id="waiting-text" class="text-emerald-200 text-sm">Votre plateau a été transmis. La partie démarrera dès que votre coéquipier aura également envoyé son plateau.</p>
+            <button id="cancel-replay" onclick="cancelReplay()" class="hidden bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">Annuler</button>
         </div>
 
         <!-- ================= ECRAN DE JEU ================= -->
@@ -260,7 +261,11 @@
         <div id="modal-content" class="bg-emerald-900 border border-emerald-600 p-6 rounded-3xl max-w-sm w-full text-center shadow-2xl space-y-4">
             <h3 id="modal-title" class="text-xl font-bold text-emerald-300">Notification</h3>
             <p id="modal-body" class="text-emerald-200 text-sm">Message...</p>
-            <button onclick="closeModal()" class="bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">Fermer</button>
+            <div class="flex flex-wrap justify-center gap-2">
+                <button id="modal-close" onclick="closeModal()" class="bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">Fermer</button>
+                <button id="modal-replay" onclick="requestReplay()" class="hidden bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold px-4 py-2 rounded-xl text-sm transition">Rejouer ensemble</button>
+                <button id="modal-quit" onclick="quitAfterVictory()" class="hidden bg-emerald-800 hover:bg-emerald-700 text-emerald-100 font-semibold px-4 py-2 rounded-xl text-sm transition">Quitter</button>
+            </div>
         </div>
     </div>
 
@@ -302,6 +307,10 @@
         let roomValidated = false;
         let roomValidationTimeout = null;
         let opponentWaitTimeout = null;
+        let wantsReplay = false;
+        let replayWaiting = false;
+        let replayStarting = false;
+        let roundVersion = 0;
         let playerName = "Joueur";
         let boardRotation = 0;
         let trapCardsCount = 2;
@@ -425,6 +434,10 @@
             stopSubmissionSync();
             stopRoomValidationTimeout();
             stopOpponentWaitTimeout();
+            wantsReplay = false;
+            replayWaiting = false;
+            replayStarting = false;
+            roundVersion = 0;
             channel = null;
             channelReady = false;
             isRoomCreator = false;
@@ -440,6 +453,11 @@
             opponentSubmission = null;
             submissionAcknowledged = false;
             isResolutionPhase = false;
+            wantsReplay = false;
+            replayWaiting = false;
+            replayStarting = false;
+            roundVersion = 0;
+            document.getElementById('cancel-replay').classList.add('hidden');
         }
 
         function initRoom() {
@@ -484,6 +502,7 @@
             });
             channel.on('presence', { event: 'sync' }, () => {
                 handleRoomPresenceSync();
+                handleReplayPresenceSync();
                 const hasOpponent = Object.values(channel.presenceState())
                     .flat()
                     .some(presence => presence.clientId !== clientId);
@@ -499,7 +518,9 @@
                         const trackStatus = await channel.track({
                             clientId,
                             name: playerName,
-                            isHost: isRoomCreator
+                            isHost: isRoomCreator,
+                            wantsReplay,
+                            roundVersion
                         });
                         if (trackStatus !== 'ok') {
                             showModal("Erreur de connexion", "Impossible de signaler votre présence dans le salon. Rechargez la page pour réessayer.");
@@ -539,6 +560,120 @@
             document.getElementById('btn-submit-clues').disabled = false;
             document.getElementById('screen-waiting').classList.add('hidden');
             document.getElementById('screen-game').classList.remove('hidden');
+        }
+
+        function handleReplayPresenceSync() {
+            if (!channel || !channelReady || !replayWaiting || replayStarting) return;
+            const opponents = Object.values(channel.presenceState())
+                .flat()
+                .filter(presence => presence.clientId !== clientId);
+            if (!opponents.length) {
+                cancelReplayLocally();
+                updateReplayPresence();
+                showModal("Partenaire indisponible", "Votre coéquipier a quitté le salon. Vous pouvez continuer cette partie ou quitter.");
+                return;
+            }
+            const host = isRoomCreator
+                ? null
+                : opponents.find(presence => presence.isHost === true);
+            if (host && Number.isInteger(host.roundVersion) && host.roundVersion > roundVersion) {
+                roundVersion = host.roundVersion;
+                startNextRound();
+                return;
+            }
+            if (isRoomCreator && wantsReplay && opponents.some(presence => presence.wantsReplay === true)) {
+                roundVersion++;
+                wantsReplay = false;
+                startNextRound();
+            }
+        }
+
+        async function updateReplayPresence() {
+            if (!channel || !channelReady) return;
+            try {
+                const status = await channel.track({
+                    clientId,
+                    name: playerName,
+                    isHost: isRoomCreator,
+                    wantsReplay,
+                    roundVersion
+                });
+                if (status !== 'ok') {
+                    console.error("Échec de mise à jour de la présence pour rejouer, statut :", status);
+                    showModal("Synchronisation impossible", "Votre choix de rejouer n'a pas pu être transmis. Vérifiez la connexion puis réessayez.");
+                }
+            } catch (error) {
+                console.error("Échec de mise à jour de la présence pour rejouer :", error);
+                showModal("Synchronisation impossible", "Votre choix de rejouer n'a pas pu être transmis. Vérifiez la connexion puis réessayez.");
+            }
+        }
+
+        async function requestReplay() {
+            closeModal();
+            if (!channelReady || !channel || !isResolutionPhase) {
+                showModal("Rejouer indisponible", "La connexion au salon n'est plus active. Revenez à l'accueil puis créez une nouvelle partie.");
+                return;
+            }
+            wantsReplay = true;
+            replayWaiting = true;
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-waiting').classList.remove('hidden');
+            document.querySelector('#screen-waiting h3').textContent = "En attente de votre coéquipier...";
+            document.getElementById('waiting-text').textContent = "Vous avez choisi de rejouer. La nouvelle manche démarrera dès que votre coéquipier aura accepté.";
+            document.getElementById('cancel-replay').classList.remove('hidden');
+            await updateReplayPresence();
+            handleReplayPresenceSync();
+        }
+
+        function cancelReplayLocally() {
+            wantsReplay = false;
+            replayWaiting = false;
+            document.getElementById('cancel-replay').classList.add('hidden');
+            document.getElementById('screen-waiting').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+        }
+
+        async function cancelReplay() {
+            cancelReplayLocally();
+            await updateReplayPresence();
+        }
+
+        function quitAfterVictory() {
+            closeModal();
+            backToHome();
+        }
+
+        async function startNextRound() {
+            if (replayStarting || !replayWaiting) return;
+            replayStarting = true;
+            replayWaiting = false;
+            wantsReplay = false;
+            stopOpponentWaitTimeout();
+            stopSubmissionSync();
+            mySubmission = null;
+            opponentSubmission = null;
+            submissionAcknowledged = false;
+            isResolutionPhase = false;
+            selectedReserveIndex = null;
+            boardRotation = 0;
+            document.getElementById('clover-container').style.transform = 'rotate(0deg)';
+            updateClueTextOrientation();
+            document.getElementById('game-status-banner').textContent = `Phase 1 (${playerName}) : Remplissez vos 4 indices !`;
+            document.getElementById('btn-submit-clues').classList.remove('hidden');
+            document.getElementById('btn-submit-clues').disabled = false;
+            document.getElementById('btn-verify').classList.add('hidden');
+            document.getElementById('reserve-section').classList.add('hidden');
+            document.getElementById('cancel-replay').classList.add('hidden');
+            document.querySelectorAll('.clue-input').forEach(input => {
+                input.disabled = false;
+                input.value = '';
+            });
+            document.getElementById('screen-waiting').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+            closeModal();
+            generateInitialBoard();
+            replayStarting = false;
+            await updateReplayPresence();
         }
 
         function startRoomValidationTimeout() {
@@ -1025,7 +1160,11 @@
             });
 
             if (correctCount === 4) {
-                showModal("🏆 Victoire !", "Bravo ! Toutes les tuiles sont parfaitement positionnées et orientées ! Score : 6 points !");
+                if (!isDebugGame && channelReady) {
+                    showReplayModal();
+                } else {
+                    showModal("🏆 Victoire !", "Bravo ! Toutes les tuiles sont parfaitement positionnées et orientées ! Score : 6 points !");
+                }
             } else {
                 showModal("Résultat", `${correctCount} tuile(s) bien positionnée(s) sur 4. Ajustez les tuiles encadrées en rouge et vérifiez les rotations !`);
             }
@@ -1050,7 +1189,17 @@
         function showModal(title, text) {
             document.getElementById('modal-title').textContent = title;
             document.getElementById('modal-body').textContent = text;
+            document.getElementById('modal-close').classList.remove('hidden');
+            document.getElementById('modal-replay').classList.add('hidden');
+            document.getElementById('modal-quit').classList.add('hidden');
             document.getElementById('modal-overlay').classList.remove('hidden');
+        }
+
+        function showReplayModal() {
+            showModal("🏆 Victoire !", "Bravo ! Toutes les tuiles sont parfaitement positionnées et orientées ! Score : 6 points !");
+            document.getElementById('modal-close').classList.add('hidden');
+            document.getElementById('modal-replay').classList.remove('hidden');
+            document.getElementById('modal-quit').classList.remove('hidden');
         }
 
         function closeModal() {
