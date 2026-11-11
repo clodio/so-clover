@@ -178,6 +178,13 @@
                 <button onclick="startDebugResolution()" class="w-full bg-amber-500/90 hover:bg-amber-400 text-amber-950 font-bold py-2.5 px-4 rounded-xl shadow transition active:scale-95 text-sm">
                     🧪 Tester la phase résolution (debug)
                 </button>
+                <button id="btn-open-history" onclick="toggleBoardHistory()" class="hidden w-full bg-sky-700 hover:bg-sky-600 text-white font-bold py-2.5 px-4 rounded-xl shadow transition active:scale-95 text-sm">
+                    📚 Rejouer un plateau sauvegardé
+                </button>
+                <div id="board-history-panel" class="hidden bg-emerald-950/60 p-3 rounded-2xl border border-emerald-700/50">
+                    <h3 class="text-sm font-bold text-emerald-300 mb-2">Plateaux sauvegardés</h3>
+                    <div id="board-history-list" class="flex flex-col gap-2"></div>
+                </div>
             </div>
 
             <div class="flex items-center my-1">
@@ -199,7 +206,6 @@
             <div class="text-4xl animate-bounce">⏳</div>
             <h3 class="text-xl font-bold text-emerald-300">En attente de l'autre joueur...</h3>
             <p id="waiting-text" class="text-emerald-200 text-sm">Votre plateau a été transmis. La partie démarrera dès que votre coéquipier aura également envoyé son plateau.</p>
-            <button id="cancel-replay" onclick="cancelReplay()" class="hidden bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">Annuler</button>
         </div>
 
         <!-- ================= ECRAN DE JEU ================= -->
@@ -239,6 +245,9 @@
                 <button id="btn-verify" onclick="verifySolution()" class="hidden bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow transition active:scale-95">
                     ✅ Vérifier la réponse
                 </button>
+                <button id="btn-skip-puzzle" onclick="loadNextHistoryBoard()" class="hidden bg-sky-600 hover:bg-sky-500 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow transition active:scale-95">
+                    ⏭ Passer cette énigme
+                </button>
             </div>
 
             <!-- Réserve de cartes disponibles pour la résolution (Masquée en Phase 1) -->
@@ -263,8 +272,8 @@
             <p id="modal-body" class="text-emerald-200 text-sm">Message...</p>
             <div class="flex flex-wrap justify-center gap-2">
                 <button id="modal-close" onclick="closeModal()" class="bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">Fermer</button>
-                <button id="modal-replay" onclick="requestReplay()" class="hidden bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold px-4 py-2 rounded-xl text-sm transition">Rejouer ensemble</button>
-                <button id="modal-quit" onclick="quitAfterVictory()" class="hidden bg-emerald-800 hover:bg-emerald-700 text-emerald-100 font-semibold px-4 py-2 rounded-xl text-sm transition">Quitter</button>
+                <button id="modal-next-puzzle" onclick="loadNextHistoryBoard()" class="hidden bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold px-4 py-2 rounded-xl text-sm transition">Résoudre une autre énigme</button>
+                <button id="modal-home" onclick="backToHome()" class="hidden bg-emerald-800 hover:bg-emerald-700 text-emerald-100 font-semibold px-4 py-2 rounded-xl text-sm transition">Retourner à l'accueil</button>
             </div>
         </div>
     </div>
@@ -307,10 +316,8 @@
         let roomValidated = false;
         let roomValidationTimeout = null;
         let opponentWaitTimeout = null;
-        let wantsReplay = false;
-        let replayWaiting = false;
-        let replayStarting = false;
-        let roundVersion = 0;
+        const BOARD_HISTORY_KEY = 'soclover_board_history_v1';
+        let activeHistoryId = null;
         let playerName = "Joueur";
         let boardRotation = 0;
         let trapCardsCount = 2;
@@ -358,6 +365,7 @@
                 document.getElementById('input-player-name').value = randomName;
                 localStorage.setItem('soclover_player_name', randomName);
             }
+            refreshBoardHistoryButton();
 
             const urlParams = new URLSearchParams(window.location.search);
             const room = urlParams.get('room');
@@ -379,6 +387,122 @@
             localStorage.setItem('soclover_player_name', playerName);
             if (showConfirmation) showModal("Pseudo enregistré", `Votre pseudo est maintenant ${playerName}.`);
             return true;
+        }
+
+        function isValidPuzzleBoard(board) {
+            return Boolean(
+                board
+                && board.clues
+                && ['top', 'bottom', 'left', 'right'].every(side => typeof board.clues[side] === 'string')
+                && Array.isArray(board.solution)
+                && board.solution.length === 4
+                && Array.isArray(board.tiles)
+                && [...board.solution, ...board.tiles].every(card =>
+                    card && Array.isArray(card.words) && card.words.length === 4
+                )
+            );
+        }
+
+        function getBoardHistory() {
+            try {
+                const stored = localStorage.getItem(BOARD_HISTORY_KEY);
+                if (!stored) return [];
+                const history = JSON.parse(stored);
+                if (!Array.isArray(history)) throw new Error("Le cache d'historique n'est pas une liste.");
+                return history.filter(entry => entry && entry.historyId && isValidPuzzleBoard(entry));
+            } catch (error) {
+                console.error("Impossible de lire l'historique des plateaux :", error);
+                showModal("Historique indisponible", "Les plateaux sauvegardés n'ont pas pu être lus dans ce navigateur.");
+                return [];
+            }
+        }
+
+        function saveBoardToHistory(board, direction) {
+            if (!isValidPuzzleBoard(board)) {
+                console.error("Plateau invalide, sauvegarde locale ignorée.");
+                return false;
+            }
+            const history = getBoardHistory();
+            const historyId = board.submissionId
+                || `${roomCode || 'local'}:${board.sender || board.name || 'joueur'}:${board.createdAt || Date.now()}`;
+            const existing = history.find(entry => entry.historyId === historyId);
+            const savedAt = existing?.savedAt || board.createdAt || new Date().toISOString();
+            const entry = {
+                ...board,
+                historyId,
+                roomCode: board.roomCode || roomCode,
+                direction: existing?.direction || direction,
+                savedAt
+            };
+            const updatedHistory = [entry, ...history.filter(item => item.historyId !== historyId)];
+
+            try {
+                localStorage.setItem(BOARD_HISTORY_KEY, JSON.stringify(updatedHistory));
+                refreshBoardHistoryButton(updatedHistory);
+                return true;
+            } catch (error) {
+                console.error("Impossible de sauvegarder le plateau dans le navigateur :", error);
+                showModal("Sauvegarde impossible", "Ce plateau n'a pas pu être ajouté à l'historique local du navigateur.");
+                return false;
+            }
+        }
+
+        function formatBoardDate(dateValue) {
+            const date = new Date(dateValue);
+            if (Number.isNaN(date.getTime())) return "date inconnue";
+            return new Intl.DateTimeFormat('fr-FR', {
+                dateStyle: 'short',
+                timeStyle: 'short'
+            }).format(date);
+        }
+
+        function refreshBoardHistoryButton(history = getBoardHistory()) {
+            const button = document.getElementById('btn-open-history');
+            const list = document.getElementById('board-history-list');
+            if (!button || !list) return;
+            button.classList.toggle('hidden', history.length === 0);
+            list.replaceChildren();
+
+            history.forEach(board => {
+                const item = document.createElement('button');
+                const direction = board.direction === 'sent' ? 'envoyé' : 'reçu';
+                item.type = 'button';
+                item.className = 'w-full text-left bg-emerald-800 hover:bg-emerald-700 text-emerald-100 px-3 py-2 rounded-xl text-sm transition';
+                item.textContent = `${board.name || 'Joueur'} — ${formatBoardDate(board.savedAt)} · ${direction}`;
+                item.onclick = () => loadBoardFromHistory(board.historyId);
+                list.appendChild(item);
+            });
+        }
+
+        function toggleBoardHistory() {
+            const panel = document.getElementById('board-history-panel');
+            refreshBoardHistoryButton();
+            panel.classList.toggle('hidden');
+        }
+
+        function loadBoardFromHistory(historyId) {
+            const board = getBoardHistory().find(entry => entry.historyId === historyId);
+            if (!board) {
+                showModal("Plateau introuvable", "Ce plateau n'est plus disponible dans l'historique local.");
+                refreshBoardHistoryButton();
+                return;
+            }
+            isDebugGame = false;
+            activeHistoryId = board.historyId;
+            document.getElementById('screen-menu').classList.add('hidden');
+            document.getElementById('board-history-panel').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+            document.getElementById('room-info').classList.add('hidden');
+            startResolutionPhase(board, true);
+        }
+
+        function loadNextHistoryBoard() {
+            const nextBoard = getBoardHistory().find(board => board.historyId !== activeHistoryId);
+            if (!nextBoard) {
+                showModal("Aucune autre énigme", "Il n'y a pas d'autre plateau sauvegardé. Envoyez ou recevez d'autres plateaux pour les ajouter à l'historique.");
+                return;
+            }
+            loadBoardFromHistory(nextBoard.historyId);
         }
 
         function generateCode() {
@@ -434,10 +558,6 @@
             stopSubmissionSync();
             stopRoomValidationTimeout();
             stopOpponentWaitTimeout();
-            wantsReplay = false;
-            replayWaiting = false;
-            replayStarting = false;
-            roundVersion = 0;
             channel = null;
             channelReady = false;
             isRoomCreator = false;
@@ -453,11 +573,8 @@
             opponentSubmission = null;
             submissionAcknowledged = false;
             isResolutionPhase = false;
-            wantsReplay = false;
-            replayWaiting = false;
-            replayStarting = false;
-            roundVersion = 0;
-            document.getElementById('cancel-replay').classList.add('hidden');
+            activeHistoryId = null;
+            refreshBoardHistoryButton();
         }
 
         function initRoom() {
@@ -481,6 +598,7 @@
             opponentSubmission = null;
             submissionAcknowledged = false;
             isResolutionPhase = false;
+            activeHistoryId = null;
             channelReady = false;
             roomValidated = false;
             clientId = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -502,7 +620,6 @@
             });
             channel.on('presence', { event: 'sync' }, () => {
                 handleRoomPresenceSync();
-                handleReplayPresenceSync();
                 const hasOpponent = Object.values(channel.presenceState())
                     .flat()
                     .some(presence => presence.clientId !== clientId);
@@ -518,9 +635,7 @@
                         const trackStatus = await channel.track({
                             clientId,
                             name: playerName,
-                            isHost: isRoomCreator,
-                            wantsReplay,
-                            roundVersion
+                            isHost: isRoomCreator
                         });
                         if (trackStatus !== 'ok') {
                             showModal("Erreur de connexion", "Impossible de signaler votre présence dans le salon. Rechargez la page pour réessayer.");
@@ -562,120 +677,6 @@
             document.getElementById('screen-game').classList.remove('hidden');
         }
 
-        function handleReplayPresenceSync() {
-            if (!channel || !channelReady || !replayWaiting || replayStarting) return;
-            const opponents = Object.values(channel.presenceState())
-                .flat()
-                .filter(presence => presence.clientId !== clientId);
-            if (!opponents.length) {
-                cancelReplayLocally();
-                updateReplayPresence();
-                showModal("Partenaire indisponible", "Votre coéquipier a quitté le salon. Vous pouvez continuer cette partie ou quitter.");
-                return;
-            }
-            const host = isRoomCreator
-                ? null
-                : opponents.find(presence => presence.isHost === true);
-            if (host && Number.isInteger(host.roundVersion) && host.roundVersion > roundVersion) {
-                roundVersion = host.roundVersion;
-                startNextRound();
-                return;
-            }
-            if (isRoomCreator && wantsReplay && opponents.some(presence => presence.wantsReplay === true)) {
-                roundVersion++;
-                wantsReplay = false;
-                startNextRound();
-            }
-        }
-
-        async function updateReplayPresence() {
-            if (!channel || !channelReady) return;
-            try {
-                const status = await channel.track({
-                    clientId,
-                    name: playerName,
-                    isHost: isRoomCreator,
-                    wantsReplay,
-                    roundVersion
-                });
-                if (status !== 'ok') {
-                    console.error("Échec de mise à jour de la présence pour rejouer, statut :", status);
-                    showModal("Synchronisation impossible", "Votre choix de rejouer n'a pas pu être transmis. Vérifiez la connexion puis réessayez.");
-                }
-            } catch (error) {
-                console.error("Échec de mise à jour de la présence pour rejouer :", error);
-                showModal("Synchronisation impossible", "Votre choix de rejouer n'a pas pu être transmis. Vérifiez la connexion puis réessayez.");
-            }
-        }
-
-        async function requestReplay() {
-            closeModal();
-            if (!channelReady || !channel || !isResolutionPhase) {
-                showModal("Rejouer indisponible", "La connexion au salon n'est plus active. Revenez à l'accueil puis créez une nouvelle partie.");
-                return;
-            }
-            wantsReplay = true;
-            replayWaiting = true;
-            document.getElementById('screen-game').classList.add('hidden');
-            document.getElementById('screen-waiting').classList.remove('hidden');
-            document.querySelector('#screen-waiting h3').textContent = "En attente de votre coéquipier...";
-            document.getElementById('waiting-text').textContent = "Vous avez choisi de rejouer. La nouvelle manche démarrera dès que votre coéquipier aura accepté.";
-            document.getElementById('cancel-replay').classList.remove('hidden');
-            await updateReplayPresence();
-            handleReplayPresenceSync();
-        }
-
-        function cancelReplayLocally() {
-            wantsReplay = false;
-            replayWaiting = false;
-            document.getElementById('cancel-replay').classList.add('hidden');
-            document.getElementById('screen-waiting').classList.add('hidden');
-            document.getElementById('screen-game').classList.remove('hidden');
-        }
-
-        async function cancelReplay() {
-            cancelReplayLocally();
-            await updateReplayPresence();
-        }
-
-        function quitAfterVictory() {
-            closeModal();
-            backToHome();
-        }
-
-        async function startNextRound() {
-            if (replayStarting || !replayWaiting) return;
-            replayStarting = true;
-            replayWaiting = false;
-            wantsReplay = false;
-            stopOpponentWaitTimeout();
-            stopSubmissionSync();
-            mySubmission = null;
-            opponentSubmission = null;
-            submissionAcknowledged = false;
-            isResolutionPhase = false;
-            selectedReserveIndex = null;
-            boardRotation = 0;
-            document.getElementById('clover-container').style.transform = 'rotate(0deg)';
-            updateClueTextOrientation();
-            document.getElementById('game-status-banner').textContent = `Phase 1 (${playerName}) : Remplissez vos 4 indices !`;
-            document.getElementById('btn-submit-clues').classList.remove('hidden');
-            document.getElementById('btn-submit-clues').disabled = false;
-            document.getElementById('btn-verify').classList.add('hidden');
-            document.getElementById('reserve-section').classList.add('hidden');
-            document.getElementById('cancel-replay').classList.add('hidden');
-            document.querySelectorAll('.clue-input').forEach(input => {
-                input.disabled = false;
-                input.value = '';
-            });
-            document.getElementById('screen-waiting').classList.add('hidden');
-            document.getElementById('screen-game').classList.remove('hidden');
-            closeModal();
-            generateInitialBoard();
-            replayStarting = false;
-            await updateReplayPresence();
-        }
-
         function startRoomValidationTimeout() {
             stopRoomValidationTimeout();
             roomValidationTimeout = window.setTimeout(() => {
@@ -706,6 +707,7 @@
             mySubmission = null;
             opponentSubmission = null;
             isResolutionPhase = false;
+            activeHistoryId = null;
 
             document.getElementById('screen-menu').classList.add('hidden');
             document.getElementById('screen-waiting').classList.add('hidden');
@@ -764,6 +766,7 @@
             document.querySelectorAll('.clue-input').forEach(i => i.disabled = false);
             document.getElementById('btn-submit-clues').classList.remove('hidden');
             document.getElementById('btn-verify').classList.add('hidden');
+            document.getElementById('btn-skip-puzzle').classList.add('hidden');
 
             renderBoard();
         }
@@ -995,6 +998,11 @@
             ]).map(tile => ({ ...tile, rot: Math.floor(Math.random() * 4) }));
 
             mySubmission = {
+                submissionId: typeof crypto !== 'undefined' && crypto.randomUUID
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                createdAt: new Date().toISOString(),
+                roomCode,
                 sender: clientId,
                 name: playerName,
                 clues: clues,
@@ -1062,7 +1070,10 @@
                     event: 'player-submit',
                     payload: mySubmission
                 });
-                if (status === 'ok') return true;
+                if (status === 'ok') {
+                    saveBoardToHistory(mySubmission, 'sent');
+                    return true;
+                }
                 console.error("Échec de l'envoi Broadcast, statut :", status);
                 if (showError) showModal("Envoi impossible", "Votre plateau n'a pas pu être envoyé. Vérifiez votre connexion puis réessayez.");
                 return false;
@@ -1074,8 +1085,9 @@
         }
 
         function handleOpponentSubmission(payload) {
-            if (!payload || payload.sender === clientId || !payload.clues || !Array.isArray(payload.solution) || !Array.isArray(payload.tiles)) return;
+            if (!isValidPuzzleBoard(payload) || payload.sender === clientId) return;
             opponentSubmission = payload;
+            saveBoardToHistory(payload, 'received');
             acknowledgeSubmission(payload.sender);
             checkIfBothSubmitted();
         }
@@ -1106,8 +1118,8 @@
             }
         }
 
-        function startResolutionPhase(puzzleData) {
-            if (!puzzleData || !puzzleData.clues || !Array.isArray(puzzleData.solution) || puzzleData.solution.length !== 4 || !Array.isArray(puzzleData.tiles)) {
+        function startResolutionPhase(puzzleData, fromHistory = false) {
+            if (!isValidPuzzleBoard(puzzleData)) {
                 showModal("Plateau invalide", "Les données reçues pour cette partie sont incomplètes.");
                 return;
             }
@@ -1115,10 +1127,14 @@
             document.getElementById('screen-waiting').classList.add('hidden');
             document.getElementById('screen-game').classList.remove('hidden');
             isResolutionPhase = true;
+            activeHistoryId = puzzleData.historyId || puzzleData.submissionId || null;
 
-            document.getElementById('game-status-banner').textContent = `Phase 2 : Résolvez l'énigme de ${puzzleData.name || 'votre coéquipier'} !`;
+            document.getElementById('game-status-banner').textContent = fromHistory
+                ? `Phase 2 : résolvez l'énigme de ${puzzleData.name || 'Joueur'} - ${formatBoardDate(puzzleData.savedAt)}`
+                : `Phase 2 : Résolvez l'énigme de ${puzzleData.name || 'votre coéquipier'} !`;
             document.getElementById('btn-submit-clues').classList.add('hidden');
             document.getElementById('btn-verify').classList.remove('hidden');
+            document.getElementById('btn-skip-puzzle').classList.remove('hidden');
             document.getElementById('reserve-section').classList.remove('hidden');
 
             document.getElementById('clue-top').value = puzzleData.clues.top;
@@ -1160,11 +1176,7 @@
             });
 
             if (correctCount === 4) {
-                if (!isDebugGame && channelReady) {
-                    showReplayModal();
-                } else {
-                    showModal("🏆 Victoire !", "Bravo ! Toutes les tuiles sont parfaitement positionnées et orientées ! Score : 6 points !");
-                }
+                showPuzzleSuccessModal();
             } else {
                 showModal("Résultat", `${correctCount} tuile(s) bien positionnée(s) sur 4. Ajustez les tuiles encadrées en rouge et vérifiez les rotations !`);
             }
@@ -1190,16 +1202,16 @@
             document.getElementById('modal-title').textContent = title;
             document.getElementById('modal-body').textContent = text;
             document.getElementById('modal-close').classList.remove('hidden');
-            document.getElementById('modal-replay').classList.add('hidden');
-            document.getElementById('modal-quit').classList.add('hidden');
+            document.getElementById('modal-next-puzzle').classList.add('hidden');
+            document.getElementById('modal-home').classList.add('hidden');
             document.getElementById('modal-overlay').classList.remove('hidden');
         }
 
-        function showReplayModal() {
+        function showPuzzleSuccessModal() {
             showModal("🏆 Victoire !", "Bravo ! Toutes les tuiles sont parfaitement positionnées et orientées ! Score : 6 points !");
             document.getElementById('modal-close').classList.add('hidden');
-            document.getElementById('modal-replay').classList.remove('hidden');
-            document.getElementById('modal-quit').classList.remove('hidden');
+            document.getElementById('modal-next-puzzle').classList.remove('hidden');
+            document.getElementById('modal-home').classList.remove('hidden');
         }
 
         function closeModal() {
