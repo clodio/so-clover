@@ -48,7 +48,7 @@
         }
         .clue-top, .clue-bottom {
             left: 50%;
-            transform: translateX(-50%);
+            transform: translateX(-50%) rotate(var(--text-orientation-correction, 0deg));
         }
         .clue-top { top: 2%; }
         .clue-bottom { bottom: 2%; }
@@ -57,11 +57,11 @@
         }
         .clue-left {
             left: 6%;
-            transform: translate(-50%, -50%) rotate(-90deg);
+            transform: translate(-50%, -50%) rotate(calc(-90deg + var(--text-orientation-correction, 0deg)));
         }
         .clue-right {
             left: 94%;
-            transform: translate(-50%, -50%) rotate(90deg);
+            transform: translate(-50%, -50%) rotate(calc(90deg + var(--text-orientation-correction, 0deg)));
         }
         .clover-grid {
             position: absolute;
@@ -88,6 +88,12 @@
             line-height: 1;
             font-size: clamp(0.6rem, 2.3vw, 1rem);
             font-weight: 700;
+        }
+        .tile-word-label {
+            display: block;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            transform: rotate(var(--text-orientation-correction, 0deg));
         }
         .tile-word-top, .tile-word-bottom {
             left: 5%;
@@ -306,6 +312,26 @@
         let opponentSubmission = null;
         let submissionSyncInterval = null;
         let submissionAcknowledged = false;
+
+        const sideAngles = { top: 0, right: 90, bottom: 180, left: 270 };
+        const sideTextAngles = { top: 0, right: 90, bottom: 0, left: -90 };
+
+        function getTextOrientationCorrection(side, rotation, baseAngle) {
+            const screenAngle = (sideAngles[side] + rotation % 360 + 360) % 360;
+            const screenSide = Object.keys(sideAngles).find(key => sideAngles[key] === screenAngle);
+            return sideTextAngles[screenSide] - rotation - baseAngle;
+        }
+
+        function updateClueTextOrientation() {
+            document.querySelectorAll('.clue-input').forEach(input => {
+                const side = input.id.replace('clue-', '');
+                const baseAngle = sideTextAngles[side];
+                input.style.setProperty(
+                    '--text-orientation-correction',
+                    `${getTextOrientationCorrection(side, boardRotation, baseAngle)}deg`
+                );
+            });
+        }
 
         window.addEventListener('DOMContentLoaded', () => {
             const savedName = localStorage.getItem('soclover_player_name');
@@ -527,6 +553,7 @@
 
             boardRotation = 0;
             document.getElementById('clover-container').style.transform = `rotate(0deg)`;
+            updateClueTextOrientation();
             
             document.getElementById('clue-top').value = "";
             document.getElementById('clue-bottom').value = "";
@@ -569,7 +596,16 @@
             ['tile-word-top', 'tile-word-right', 'tile-word-bottom', 'tile-word-left'].forEach((position, wordIndex) => {
                 const label = document.createElement('span');
                 label.className = `tile-word ${position}`;
-                label.textContent = words[wordIndex];
+                const side = ['top', 'right', 'bottom', 'left'][wordIndex];
+                const baseAngle = sideTextAngles[side];
+                const wordLabel = document.createElement('span');
+                wordLabel.className = 'tile-word-label';
+                wordLabel.textContent = words[wordIndex];
+                wordLabel.style.setProperty(
+                    '--text-orientation-correction',
+                    `${getTextOrientationCorrection(side, boardRotation + cardData.rot * 90, baseAngle)}deg`
+                );
+                label.appendChild(wordLabel);
                 card.appendChild(label);
             });
 
@@ -729,6 +765,8 @@
         function rotateBoard() {
             boardRotation = (boardRotation + 90) % 360;
             document.getElementById('clover-container').style.transform = `rotate(${boardRotation}deg)`;
+            updateClueTextOrientation();
+            renderBoard();
         }
 
         async function submitClues() {
@@ -873,6 +911,7 @@
             selectedReserveIndex = null;
             boardRotation = 0;
             document.getElementById('clover-container').style.transform = `rotate(0deg)`;
+            updateClueTextOrientation();
             document.querySelectorAll('.board-slot').forEach(slot => {
                 slot.classList.remove('is-correct', 'is-incorrect');
             });
