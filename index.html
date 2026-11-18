@@ -6,8 +6,9 @@
     <title>So Clover ! - Édition Web</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Supabase JS Client v2 -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Firebase SDK (Compat v10) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <!-- Font -->
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -22,107 +23,12 @@
         }
         .tile-card {
             transition: transform 0.2s ease, box-shadow 0.2s ease;
-            touch-action: manipulation;
         }
-        .tile-card.is-dragging {
-            opacity: 0.5;
-        }
-        .clue-input {
-            position: absolute;
-            z-index: 2;
-            width: 44%;
-            height: 2.25rem;
-            padding: 0.25rem 0.5rem;
-            border: 1px solid rgb(16 185 129 / 50%);
-            border-radius: 0.5rem;
-            background: rgb(2 44 34 / 95%);
-            color: rgb(209 250 229);
-            text-align: center;
-            text-transform: uppercase;
-            font-size: clamp(0.65rem, 2.4vw, 0.8rem);
-            font-weight: 700;
-            box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
-        }
-        .clue-input:focus {
-            outline: 2px solid rgb(110 231 183);
-            outline-offset: 1px;
-        }
-        .clue-top, .clue-bottom {
-            left: 50%;
-            transform: translateX(-50%) rotate(var(--text-orientation-correction, 0deg));
-        }
-        .clue-top { top: 2%; }
-        .clue-bottom { bottom: 2%; }
-        .clue-left, .clue-right {
-            top: 50%;
-        }
-        .clue-left {
-            left: 6%;
-            transform: translate(-50%, -50%) rotate(calc(-90deg + var(--text-orientation-correction, 0deg)));
-        }
-        .clue-right {
-            left: 94%;
-            transform: translate(-50%, -50%) rotate(calc(90deg + var(--text-orientation-correction, 0deg)));
-        }
-        .clover-grid {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 74%;
-            aspect-ratio: 1;
-            transform: translate(-50%, -50%);
-        }
-        .board-slot {
-            min-width: 0;
-            min-height: 0;
-        }
-        .tile-word {
-            position: absolute;
-            display: grid;
-            place-items: center;
-            min-width: 0;
-            padding: 0 0.1em;
-            box-sizing: border-box;
-            overflow-wrap: anywhere;
-            text-wrap: balance;
-            text-align: center;
-            line-height: 1;
-            font-size: clamp(0.6rem, 2.3vw, 1rem);
-            font-weight: 700;
-        }
-        .tile-word-label {
-            display: block;
-            max-width: 100%;
-            overflow-wrap: anywhere;
-            transform: rotate(var(--text-orientation-correction, 0deg));
-        }
-        .tile-word-top, .tile-word-bottom {
-            left: 5%;
-            width: 90%;
-            height: 26%;
-        }
-        .tile-word-top { top: 3%; }
-        .tile-word-bottom { bottom: 3%; }
-        .tile-word-left, .tile-word-right {
-            top: 50%;
-            width: 78%;
-            height: 26%;
-        }
-        .tile-word-left {
-            left: -19%;
-            transform: translateY(-50%) rotate(-90deg);
-        }
-        .tile-word-right {
-            right: -19%;
-            transform: translateY(-50%) rotate(90deg);
-        }
-        .board-slot.is-correct {
-            border-color: rgb(74 222 128);
-            box-shadow: 0 0 0 4px rgb(74 222 128 / 45%);
-        }
-        .board-slot.is-incorrect {
-            border-color: rgb(248 113 113);
-            box-shadow: 0 0 0 4px rgb(248 113 113 / 45%);
+        /* Style pour les indices verticaux (gauche, droite, bas) */
+        .vertical-input-container {
+            writing-mode: vertical-lr;
+            text-orientation: mixed;
+            transform: rotate(180deg);
         }
     </style>
 </head>
@@ -158,7 +64,7 @@
                 <label class="block text-xs font-semibold uppercase tracking-wider text-emerald-300">Votre Pseudo :</label>
                 <div class="flex gap-2">
                     <input type="text" id="input-player-name" placeholder="Entrez votre pseudo" class="flex-grow bg-emerald-950 border border-emerald-700 rounded-xl p-2.5 text-emerald-100 font-semibold focus:outline-none focus:border-emerald-400 text-sm">
-                    <button onclick="savePlayerName(true)" class="bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition">Mettre à jour</button>
+                    <button onclick="savePlayerName()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition">Mettre à jour</button>
                 </div>
             </div>
 
@@ -175,16 +81,6 @@
                 <button onclick="createGame()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold py-3.5 px-4 rounded-xl shadow-lg transition active:scale-95 text-lg">
                     🍀 Créer une partie
                 </button>
-                <!-- button onclick="startDebugResolution()" class="w-full bg-amber-500/90 hover:bg-amber-400 text-amber-950 font-bold py-2.5 px-4 rounded-xl shadow transition active:scale-95 text-sm">
-                    🧪 Tester la phase résolution (debug)
-                </button>-->
-                <button id="btn-open-history" onclick="toggleBoardHistory()" class="hidden w-full bg-sky-700 hover:bg-sky-600 text-white font-bold py-2.5 px-4 rounded-xl shadow transition active:scale-95 text-sm">
-                    📚 Rejouer un plateau sauvegardé
-                </button>
-                <div id="board-history-panel" class="hidden bg-emerald-950/60 p-3 rounded-2xl border border-emerald-700/50">
-                    <h3 class="text-sm font-bold text-emerald-300 mb-2">Plateaux sauvegardés</h3>
-                    <div id="board-history-list" class="flex flex-col gap-2"></div>
-                </div>
             </div>
 
             <div class="flex items-center my-1">
@@ -216,18 +112,41 @@
                 Phase 1 : Remplissez vos indices pour le trèfle !
             </div>
 
-            <!-- Zone Plateau de Trèfle (Grand format carré maximisé, indices gauche, droite et bas verticaux compacts) -->
-            <div id="clover-wrapper" class="w-full max-w-[640px] aspect-square relative my-1 transition-transform duration-300 flex items-center justify-center p-0.5">
-                <div id="clover-container" class="absolute inset-1 bg-emerald-800 rounded-3xl border-4 border-emerald-600 shadow-2xl clover-board transition-transform duration-300">
-                    <input type="text" id="clue-top" placeholder="Indice Haut" aria-label="Indice haut" autocomplete="off" class="clue-input clue-top">
-                    <input type="text" id="clue-bottom" placeholder="Indice Bas" aria-label="Indice bas" autocomplete="off" class="clue-input clue-bottom">
-                    <input type="text" id="clue-left" placeholder="Indice Gauche" aria-label="Indice gauche" autocomplete="off" class="clue-input clue-left">
-                    <input type="text" id="clue-right" placeholder="Indice Droite" aria-label="Indice droite" autocomplete="off" class="clue-input clue-right">
-                    <div class="clover-grid grid grid-cols-2 gap-1.5 sm:gap-2 bg-emerald-900/90 p-1.5 sm:p-2 rounded-2xl border-2 border-emerald-600/60 shadow-inner">
-                        <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square" data-slot="0" onclick="handleSlotClick(0)" ondragover="allowCardDrop(event)" ondrop="dropCard(event, 0)"></div>
-                        <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square" data-slot="1" onclick="handleSlotClick(1)" ondragover="allowCardDrop(event)" ondrop="dropCard(event, 1)"></div>
-                        <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square" data-slot="2" onclick="handleSlotClick(2)" ondragover="allowCardDrop(event)" ondrop="dropCard(event, 2)"></div>
-                        <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square" data-slot="3" onclick="handleSlotClick(3)" ondragover="allowCardDrop(event)" ondrop="dropCard(event, 3)"></div>
+            <!-- Zone Plateau de Trèfle -->
+            <div id="clover-wrapper" class="w-full max-w-[560px] aspect-square relative my-1 transition-transform duration-300 flex items-center justify-center p-1">
+                <div id="clover-container" class="absolute inset-1 bg-emerald-800 rounded-3xl border-4 border-emerald-600 shadow-2xl flex flex-col items-center justify-between p-2 clover-board transition-transform duration-300">
+                    
+                    <!-- Indice HAUT -->
+                    <div class="w-full text-center z-10 flex justify-center">
+                        <input type="text" id="clue-top" placeholder="Indice Haut" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-3 py-1 text-center font-bold text-emerald-200 w-40 sm:w-52 text-xs focus:outline-none focus:border-emerald-300 shadow" onchange="syncClues()">
+                    </div>
+
+                    <!-- Ligne Centrale -->
+                    <div class="w-full flex justify-between items-center z-10 my-auto">
+                        <!-- Indice GAUCHE -->
+                        <div class="w-[15%] h-36 sm:h-44 flex items-center justify-center px-0.5">
+                            <input type="text" id="clue-left" placeholder="Indice Gauche" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-1 py-1 text-center font-bold text-emerald-200 w-28 sm:w-36 text-[11px] sm:text-xs focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
+                        </div>
+
+                        <!-- Grille 2x2 géante -->
+                        <div class="grid grid-cols-2 gap-2 w-[70%] aspect-square bg-emerald-900/90 p-2.5 rounded-2xl border-2 border-emerald-600/60 shadow-inner">
+                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="0" onclick="handleSlotClick(0)"></div>
+                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="1" onclick="handleSlotClick(1)"></div>
+                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="2" onclick="handleSlotClick(2)"></div>
+                            <div class="board-slot relative bg-emerald-950/60 rounded-xl border-2 border-dashed border-emerald-600/40 flex items-center justify-center aspect-square overflow-hidden" data-slot="3" onclick="handleSlotClick(3)"></div>
+                        </div>
+
+                        <!-- Indice DROITE -->
+                        <div class="w-[15%] h-36 sm:h-44 flex items-center justify-center px-0.5">
+                            <input type="text" id="clue-right" placeholder="Indice Droite" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-1 py-1 text-center font-bold text-emerald-200 w-28 sm:w-36 text-[11px] sm:text-xs focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
+                        </div>
+                    </div>
+
+                    <!-- Indice BAS -->
+                    <div class="w-full text-center z-10 flex justify-center py-0.5">
+                        <div class="h-10 sm:h-12 flex items-center justify-center">
+                            <input type="text" id="clue-bottom" placeholder="Indice Bas" class="clue-input bg-emerald-950/90 border border-emerald-500/50 rounded-lg px-2 py-1 text-center font-bold text-emerald-200 w-40 sm:w-52 text-xs focus:outline-none focus:border-emerald-300 shadow vertical-input-container" onchange="syncClues()">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -245,177 +164,69 @@
                 <button id="btn-verify" onclick="verifySolution()" class="hidden bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow transition active:scale-95">
                     ✅ Vérifier la réponse
                 </button>
-                <button id="btn-skip-puzzle" onclick="confirmSkipPuzzle()" class="hidden bg-sky-600 hover:bg-sky-500 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow transition active:scale-95">
-                    ⏭ Passer cette énigme
-                </button>
             </div>
 
-            <!-- Réserve de cartes disponibles pour la résolution (Masquée en Phase 1) -->
+            <!-- Réserve de cartes -->
             <div id="reserve-section" class="hidden w-full max-w-lg bg-emerald-900/60 p-2.5 rounded-2xl border border-emerald-700/50 mt-1">
                 <div class="flex justify-between items-center mb-1 px-1">
                     <span class="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Cartes disponibles (Pièges inclus)</span>
-                    <span class="text-[11px] text-emerald-400/80">Touchez pour pivoter, appui long + glisser pour déplacer</span>
+                    <span class="text-[11px] text-emerald-400/80">Tap pour placer ou pivoter (🔄)</span>
                 </div>
-                <div id="deck-reserve" class="flex flex-wrap justify-center gap-2 min-h-[90px]">
-                    <!-- Tuiles injectées dynamiquement -->
-                </div>
+                <div id="deck-reserve" class="flex flex-wrap justify-center gap-2 min-h-[90px]"></div>
             </div>
 
         </div>
 
     </main>
 
-    <!-- Modal de notification / résultat -->
+    <!-- Modal -->
     <div id="modal-overlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
         <div id="modal-content" class="bg-emerald-900 border border-emerald-600 p-6 rounded-3xl max-w-sm w-full text-center shadow-2xl space-y-4">
             <h3 id="modal-title" class="text-xl font-bold text-emerald-300">Notification</h3>
             <p id="modal-body" class="text-emerald-200 text-sm">Message...</p>
-            <div class="flex flex-wrap justify-center gap-2">
-                <button id="modal-close" onclick="closeModal()" class="bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">Fermer</button>
-                <button id="modal-confirm-skip" onclick="loadNextHistoryBoard()" class="hidden bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2 rounded-xl text-sm transition">Oui, passer</button>
-                <button id="modal-next-puzzle" onclick="loadNextHistoryBoard()" class="hidden bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold px-4 py-2 rounded-xl text-sm transition">Résoudre une autre énigme</button>
-                <button id="modal-home" onclick="backToHome()" class="hidden bg-emerald-800 hover:bg-emerald-700 text-emerald-100 font-semibold px-4 py-2 rounded-xl text-sm transition">Retourner à l'accueil</button>
-            </div>
+            <button onclick="closeModal()" class="bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">Fermer</button>
         </div>
     </div>
 
-    <!-- Script Supabase & Logique du Jeu -->
+    <!-- Script Firebase & Logique du Jeu -->
     <script>
-        const SUPABASE_URL = "https://ckvqujwxzlpdfwxbuqno.supabase.co";
-        const SUPABASE_KEY = "sb_publishable__8RopAM6dop73hqiygWiTQ_PH9riFog";
-        const supabaseClient = window.supabase
-            ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
-            : null;
+        // Configuration Firebase (Base de données en temps réel gratuite Google)
+        const firebaseConfig = {
+            databaseURL: "https://soclover-default-rtdb.firebaseio.com"
+        };
+
+        // Initialisation Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
         const WORDS_DATABASE = [
-    ["NEIGE", "ESPRIT", "CORBEILLE", "CLOWN"],
-    ["CASCADE", "DÉCORATION", "FILM", "HERBE"],
-    ["ÉCLAIR", "POLAIRE", "PATIN", "MAGICIEN"],
-    ["GORGE", "TRAVAIL", "CRÈME", "BRAS"],
-    ["REMISE", "GARE", "LASER", "PÉTARD"],
-    ["CHOUETTE", "TIMBRE", "PLACE", "CHANSON"],
-    ["ROI", "STUDIO", "MOUSTIQUE", "CAVE"],
-    ["BOÎTE", "CIRQUE", "CITROUILLE", "PILOTE"],
-    ["CISEAUX", "AILE", "PALAIS", "ÉCHELLE"],
-    ["POLICE", "AIR", "SILENCE", "DOUBLE"],
-    ["POIDS", "PÂTISSERIE", "BOMBE", "MÉNAGE"],
-    ["PARADIS", "FLEURET", "SAC", "PARQUET"],
-    ["VICTOIRE", "PIANO", "POISON", "MONUMENT"],
-    ["PAIN", "BOÎTIER", "ROBOT", "FEU"],
-    ["CHAINE", "CHEVAL", "COURRIER", "COURT"],
-    ["SÉRIE", "PLANCHE", "MANCHE", "FLEUR"],
-    ["MÉDICAMENT", "VIOLET", "VAPEUR", "MARCHE"],
-    ["MIROIR", "CÉLÈBRE", "SOL", "CHAMP"],
-    ["DÉ", "ORAGE", "MIEL", "OUÏE"],
-    ["BLANC", "EXPOSITION", "VAISSEAU", "LIVRE"],
-    ["PONT", "POISSON", "TERRE", "LUNE"],
-    ["VERRE", "BALLE", "VOILE", "NATURE"],
-    ["BÉTON", "PAQUET", "CHATEAU", "FRAPPER"],
-    ["BAR", "OR", "FLAMME", "CHAMPION"],
-    ["PIERRE", "PORT", "RÉSEAU", "LAVAGE"],
-    ["PRÉPARATION", "CHAUD", "BILLE", "CARTE"],
-    ["LOUCHE", "BÂTON", "GRAPHIQUE", "MAILLOT"],
-    ["PLANTATION", "JAPON", "CŒUR", "FRUIT"],
-    ["TENNIS", "VENT", "MARQUE", "FIL"],
-    ["TÊTE", "PIQUET", "COULEUR", "LUMIÈRE"],
-    ["PAPIER", "BOIS", "BÂTIMENT", "POULET"],
-    ["FLÈCHE", "ATTRACTION", "HAUT", "COUCHE"],
-    ["DIABLE", "SABLE", "POUBELLE", "CHAÎNE"],
-    ["ÉPÉE", "GÉANT", "DENT", "VAGUE"],
-    ["DISQUE", "MONTAGNE", "CANARD", "SOUPE"],
-    ["DESSIN", "PIED", "COUTEAU", "ROUE"],
-    ["TROU", "PÂTE", "RIDEAU", "BOUTON"],
-    ["PORTE", "GLACE", "FUMÉE", "BATEAU"],
-    ["SOURIS", "GRAIN", "CLÉ", "POISON"],
-    ["TUBE", "PARCS", "BOULE", "TABLEAU"],
-    ["TABAC", "GARAGE", "FÉLIN", "MÉTÉO"],
-    ["GRIS", "FUSÉE", "LION", "PIÈCE"],
-    ["CHAMPIGNON", "CÂBLE", "CANON", "COQUAGE"],
-    ["BÂTISTE", "ORANGE", "PERLE", "COURONNE"],
-    ["TROUSSE", "BOUTEILLE", "RAINETTE", "JEU"],
-    ["JARDIN", "RIVIÈRE", "PÊCHE", "VOITURE"],
-    ["PARFUM", "MAISON", "CURE", "GRAPHE"],
-    ["BÂTI", "MARCHÉ", "LANCE", "PINCE"],
-    ["MONNAIE", "AVION", "NUAGE", "LUNETTES"],
-    ["ROSE", "ÉTOILE", "SOLEIL", "PLUIE"],
-    ["PUBLICITÉ", "RELIGION", "SIRÈNE", "CARREFOUR"],
-    ["GRAISSE", "LAVE", "CHAMPAGNE", "BAGUE"],
-    ["MONSTRE", "FRONTIÈRE", "ANIMAL", "GÂTEAU"],
-    ["VILLAGE", "PLAGE", "TORTUE", "CHAUSSETTE"],
-    ["LANCE", "COUP", "TRAIN", "BALLON"],
-    ["BÂTONNET", "RÈGLE", "PIÈGE", "VOLCAN"],
-    ["MARBRE", "POMME", "SERPENT", "MONNAIE"],
-    ["MARCHE", "POCKET", "LÉGENDE", "DENTELLE"],
-    ["CERCLE", "TABLE", "OISEAU", "CIEL"],
-    ["BROSSE", "COUTEAU", "CROIX", "GANT"],
-    ["MARS", "RAME", "MOUTARDE", "MÉDUSE"],
-    ["CHAMPIGNON", "BARRAGE", "CABLE", "CŒUR"],
-    ["CORDE", "BOMBE", "POULE", "CHAISE"],
-    ["TOURELLE", "GARDE", "PERLE", "CHAINE"],
-    ["MANTEAU", "RIDEAU", "PLANÈTE", "PÉPITE"],
-    ["LUMIÈRE", "PARASOL", "PÉTALE", "BLOC"],
-    ["BOTTES", "FLÔTE", "RÉSEAU", "GRAPHE"],
-    ["TOUR", "BARRE", "ROCHE", "PLAQUE"],
-    ["COUSSIN", "LAMPE", "BÂTON", "ÉRAN"],
-    ["PAPILLON", "GRAVIER", "NID", "FLEUR"],
-    ["RAPIDE", "MODE", "BOULANGER", "CAISSE"],
-    ["MORSURE", "POURSUITE", "VAGUE", "RÉCITAL"],
-    ["PONT", "VOL", "VOYAGE", "NIGHT"],
-    ["BAL", "PIERRE", "IMAGE", "SOL"],
-    ["FLEUR", "BARRAGE", "CIBLE", "JEU"],
-    ["MARCHÉ", "MARQUE", "CÂBLE", "FUSÉE"],
-    ["BÂTISSE", "MÉDECINE", "BOIS", "BOULE"],
-    ["PORTE", "CANON", "COUTEAU", "ROCHE"],
-    ["CHÂTEAU", "MAISON", "COUR", "FUMÉE"],
-    ["SERPENT", "LION", "TORTUE", "OISEAU"],
-    ["CURRY", "BÉBÉ", "PENDULE", "NOTICE"],
-    ["DOIGT", "BOISSON", "TOILE", "LUNETTES"],
-    ["SOUPE", "SABLE", "GÂTEAU", "FRUIT"],
-    ["DESSIN", "IMAGE", "TABLEAU", "FILM"],
-    ["LUMIÈRE", "SOLEIL", "ÉTOILE", "LUNE"],
-    ["MONTAGNE", "NEIGE", "GLACE", "FROID"],
-    ["EAU", "RIVIÈRE", "CASCADE", "PLUIE"],
-    ["ORAGE", "ÉCLAIR", "VENT", "NUAGE"],
-    ["ROUE", "VOITURE", "TRAIN", "AVION"],
-    ["BOIS", "ARBRE", "JARDIN", "HERBE"],
-    ["CHEVEUX", "MISSILE", "VÊTEMENT", "BANANE"],
-    ["FUITE", "PÂTE", "ROUGE", "PASSION"],
-    ["RÊVE", "SECRET", "MYSTÈRE", "CODE"],
-    ["CACHÉ", "VICTOIRE", "PIRATE", "CANON"],
-    ["ÎLE", "TÉRÉSOR", "RICHE", "MONNAIE"],
-    ["TEMPS", "HEURE", "MONTRE", "HORLOGE"],
-    ["SUCRE", "CHOCOLAT", "GOURMAND", "NOIR"],
-    ["VAMPIRE", "SANG", "DENTS", "NUIT"],
-    ["ESPACE", "JUNGLE", "VENIN", "REPTILE"],
-    ["REFLET", "STADE", "BUT", "AIR"],
-    ["BAGUE", "ARCHÉOLOGIE", "HUILE", "STATUE"],
-    ["GRAIN", "PÂTE", "PÉTALE", "BOULE"],
-    ["POISON", "CHAUD", "FROID", "NAGE"],
-    ["MOTEUR", "VITESSE", "LECTURE", "ROMAN"],
-    ["TASSE", "SON", "GUITARE", "NOTE"],
-    ["ROSE", "SOMMET", "ENTRÉE", "BOULANGER"],
-    ["FARINE", "ABOIEMENT", "AMIS", "PARAPLUIE"],
-    ["TRESOR", "PIÈCE", "CREME", "BLEU"],
-    ["ANGE", "TOUCHE", "CONCERT", "ACIER"],
-    ["FUTUR", "MACHINE", "CINÉMA", "ACTEUR"],
-    ["RAIL", "SOUFFLE", "TEMPÊTE", "VERRE"]
-];
-     
+            ["POISSON", "CHAT", "EAU", "NAGE"], ["SOLEIL", "PLAGE", "CHALEUR", "ETE"],
+            ["ARBRE", "FORET", "BOIS", "VERT"], ["VOITURE", "ROUE", "MOTEUR", "VITESSE"],
+            ["LIVRE", "PAGE", "LECTURE", "ROMAN"], ["CAFE", "MATIN", "TASSE", "CHAUD"],
+            ["AVION", "CIEL", "VOL", "VOYAGE"], ["MUSIQUE", "NOTE", "GUITARE", "SON"],
+            ["FLEUR", "JARDIN", "PARFUM", "ROSE"], ["MONTAGNE", "NEIGE", "SOMMET", "FROID"],
+            ["PORTE", "CLE", "MAISON", "ENTREE"], ["NUIT", "LUNE", "ETOILE", "REVE"],
+            ["PAIN", "BOULANGER", "FARINE", "TABLE"], ["POMME", "FRUIT", "ARBRE", "ROUGE"],
+            ["CHIEN", "ANIMAL", "ABOIEMENT", "AMIS"], ["PLUIE", "NUAGE", "ORAGE", "PARAPLUIE"],
+            ["FEU", "FLAMME", "CHALEUR", "FUMEE"], ["OR", "TRESOR", "PIECE", "RICHE"],
+            ["HORLOGE", "TEMPS", "HEURE", "MONTRE"], ["GLACE", "FROID", "CHOCOLAT", "CREME"],
+            ["MER", "VAGUE", "BATEAU", "BLEU"], ["CIEUX", "ANGE", "BLEU", "OISEAU"],
+            ["ROI", "COURONNE", "CHATEAU", "REINE"], ["PIANO", "TOUCHE", "CONCERT", "BLANC"],
+            ["ROBOT", "ACIER", "FUTUR", "MACHINE"], ["CINEMA", "FILM", "ECRAN", "ACTEUR"],
+            ["TRAIN", "RAIL", "GARE", "VOYAGE"], ["VENT", "AIR", "SOUFFLE", "TEMPETE"],
+            ["FOOTBALL", "BALLON", "STADE", "BUT"], ["MIROIR", "REFLET", "VERRE", "IMAGE"],
+            ["SERPENT", "VENIN", "JUNGLE", "REPTILE"], ["ESPACE", "LUNE", "FUSEE", "ETOILE"],
+            ["CHOCOLAT", "SUCRE", "NOIR", "GOURMAND"], ["VAMPIRE", "SANG", "NUIT", "DENTS"],
+            ["AMOUR", "COEUR", "ROUGE", "PASSION"], ["SECRET", "MYSTERE", "CODE", "CACHE"],
+            ["JEU", "DES", "PLATEAU", "VICTOIRE"], ["PIRATE", "BATEAU", "CANON", "ILE"]
+        ];
 
         let roomCode = "";
-        let channel = null;
-        let clientId = "";
-        let channelReady = false;
-        let isRoomCreator = false;
-        let roomValidated = false;
-        let roomValidationTimeout = null;
-        let opponentWaitTimeout = null;
-        const BOARD_HISTORY_KEY = 'soclover_board_history_v1';
-        let activeHistoryId = null;
+        let roomRef = null;
+        let myRole = "player1";
         let playerName = "Joueur";
         let boardRotation = 0;
         let trapCardsCount = 2;
-        let isDebugGame = false;
 
         let currentBoardCards = [null, null, null, null];
         let originalSolution = [null, null, null, null];
@@ -425,28 +236,6 @@
 
         let mySubmission = null;
         let opponentSubmission = null;
-        let submissionSyncInterval = null;
-        let submissionAcknowledged = false;
-
-        const sideAngles = { top: 0, right: 90, bottom: 180, left: 270 };
-        const sideTextAngles = { top: 0, right: 90, bottom: 0, left: -90 };
-
-        function getTextOrientationCorrection(side, rotation, baseAngle) {
-            const screenAngle = (sideAngles[side] + rotation % 360 + 360) % 360;
-            const screenSide = Object.keys(sideAngles).find(key => sideAngles[key] === screenAngle);
-            return sideTextAngles[screenSide] - rotation - baseAngle;
-        }
-
-        function updateClueTextOrientation() {
-            document.querySelectorAll('.clue-input').forEach(input => {
-                const side = input.id.replace('clue-', '');
-                const baseAngle = sideTextAngles[side];
-                input.style.setProperty(
-                    '--text-orientation-correction',
-                    `${getTextOrientationCorrection(side, boardRotation, baseAngle)}deg`
-                );
-            });
-        }
 
         window.addEventListener('DOMContentLoaded', () => {
             const savedName = localStorage.getItem('soclover_player_name');
@@ -459,389 +248,97 @@
                 document.getElementById('input-player-name').value = randomName;
                 localStorage.setItem('soclover_player_name', randomName);
             }
-            refreshBoardHistoryButton();
 
             const urlParams = new URLSearchParams(window.location.search);
             const room = urlParams.get('room');
             if (room) {
-                document.getElementById('input-room').value = room.toUpperCase();
-                const isCreatorHistoryEntry = window.history.state?.room === room.toUpperCase()
-                    && window.history.state?.isRoomCreator === true;
-                joinRoom(room.toUpperCase(), isCreatorHistoryEntry);
+                joinRoom(room.toUpperCase());
             }
         });
 
-        function savePlayerName(showConfirmation = false) {
+        function savePlayerName() {
             const inputVal = document.getElementById('input-player-name').value.trim();
-            if (!inputVal) {
-                showModal("Pseudo requis", "Saisissez un pseudo avant de continuer.");
-                return false;
+            if (inputVal) {
+                playerName = inputVal;
+                localStorage.setItem('soclover_player_name', playerName);
+                alert(`Pseudo enregistré : ${playerName}`);
             }
-            playerName = inputVal;
-            localStorage.setItem('soclover_player_name', playerName);
-            if (showConfirmation) showModal("Pseudo enregistré", `Votre pseudo est maintenant ${playerName}.`);
-            return true;
-        }
-
-        function isValidPuzzleBoard(board) {
-            return Boolean(
-                board
-                && board.clues
-                && ['top', 'bottom', 'left', 'right'].every(side => typeof board.clues[side] === 'string')
-                && Array.isArray(board.solution)
-                && board.solution.length === 4
-                && Array.isArray(board.tiles)
-                && [...board.solution, ...board.tiles].every(card =>
-                    card && Array.isArray(card.words) && card.words.length === 4
-                )
-            );
-        }
-
-        function getBoardHistory() {
-            try {
-                const stored = localStorage.getItem(BOARD_HISTORY_KEY);
-                if (!stored) return [];
-                const history = JSON.parse(stored);
-                if (!Array.isArray(history)) throw new Error("Le cache d'historique n'est pas une liste.");
-                return history.filter(entry => entry && entry.historyId && isValidPuzzleBoard(entry));
-            } catch (error) {
-                console.error("Impossible de lire l'historique des plateaux :", error);
-                showModal("Historique indisponible", "Les plateaux sauvegardés n'ont pas pu être lus dans ce navigateur.");
-                return [];
-            }
-        }
-
-        function saveBoardToHistory(board, direction) {
-            if (!isValidPuzzleBoard(board)) {
-                console.error("Plateau invalide, sauvegarde locale ignorée.");
-                return false;
-            }
-            const history = getBoardHistory();
-            const historyId = board.submissionId
-                || `${roomCode || 'local'}:${board.sender || board.name || 'joueur'}:${board.createdAt || Date.now()}`;
-            const existing = history.find(entry => entry.historyId === historyId);
-            const savedAt = existing?.savedAt || board.createdAt || new Date().toISOString();
-            const entry = {
-                ...board,
-                historyId,
-                roomCode: board.roomCode || roomCode,
-                direction: existing?.direction || direction,
-                savedAt
-            };
-            const updatedHistory = [entry, ...history.filter(item => item.historyId !== historyId)];
-
-            try {
-                localStorage.setItem(BOARD_HISTORY_KEY, JSON.stringify(updatedHistory));
-                refreshBoardHistoryButton(updatedHistory);
-                return true;
-            } catch (error) {
-                console.error("Impossible de sauvegarder le plateau dans le navigateur :", error);
-                showModal("Sauvegarde impossible", "Ce plateau n'a pas pu être ajouté à l'historique local du navigateur.");
-                return false;
-            }
-        }
-
-        function formatBoardDate(dateValue) {
-            const date = new Date(dateValue);
-            if (Number.isNaN(date.getTime())) return "date inconnue";
-            return new Intl.DateTimeFormat('fr-FR', {
-                dateStyle: 'short',
-                timeStyle: 'short'
-            }).format(date);
-        }
-
-        function refreshBoardHistoryButton(history = getBoardHistory()) {
-            const button = document.getElementById('btn-open-history');
-            const list = document.getElementById('board-history-list');
-            if (!button || !list) return;
-            button.classList.toggle('hidden', history.length === 0);
-            list.replaceChildren();
-
-            history.forEach(board => {
-                const item = document.createElement('button');
-                const direction = board.direction === 'sent' ? 'envoyé' : 'reçu';
-                item.type = 'button';
-                item.className = 'w-full text-left bg-emerald-800 hover:bg-emerald-700 text-emerald-100 px-3 py-2 rounded-xl text-sm transition';
-                item.textContent = `${board.name || 'Joueur'} — ${formatBoardDate(board.savedAt)} · ${direction}`;
-                item.onclick = () => loadBoardFromHistory(board.historyId);
-                list.appendChild(item);
-            });
-        }
-
-        function toggleBoardHistory() {
-            const panel = document.getElementById('board-history-panel');
-            refreshBoardHistoryButton();
-            panel.classList.toggle('hidden');
-        }
-
-        function loadBoardFromHistory(historyId) {
-            const board = getBoardHistory().find(entry => entry.historyId === historyId);
-            if (!board) {
-                showModal("Plateau introuvable", "Ce plateau n'est plus disponible dans l'historique local.");
-                refreshBoardHistoryButton();
-                return;
-            }
-            isDebugGame = false;
-            activeHistoryId = board.historyId;
-            document.getElementById('screen-menu').classList.add('hidden');
-            document.getElementById('board-history-panel').classList.add('hidden');
-            document.getElementById('screen-game').classList.remove('hidden');
-            document.getElementById('room-info').classList.add('hidden');
-            startResolutionPhase(board, true);
-        }
-
-        function loadNextHistoryBoard() {
-            const nextBoard = getBoardHistory().find(board => board.historyId !== activeHistoryId);
-            if (!nextBoard) {
-                showModal("Aucune autre énigme", "Il n'y a pas d'autre plateau sauvegardé. Envoyez ou recevez d'autres plateaux pour les ajouter à l'historique.");
-                return;
-            }
-            loadBoardFromHistory(nextBoard.historyId);
-            closeModal();
-        }
-
-        function confirmSkipPuzzle() {
-            const hasNextBoard = getBoardHistory().some(board => board.historyId !== activeHistoryId);
-            if (!hasNextBoard) {
-                loadNextHistoryBoard();
-                return;
-            }
-            showModal("Passer cette énigme ?", "Votre progression sur ce plateau sera abandonnée. Voulez-vous charger une autre énigme ?");
-            document.getElementById('modal-close').textContent = "Annuler";
-            document.getElementById('modal-confirm-skip').classList.remove('hidden');
         }
 
         function generateCode() {
-            return Math.random().toString(36).substring(2, 8).toUpperCase();
+            return Math.random().toString(36).substring(2, 6).toUpperCase();
         }
 
         function createGame() {
-            if (!savePlayerName() || !supabaseClient) {
-                if (!supabaseClient) showModal("Connexion indisponible", "Supabase n'a pas pu être chargé. Vérifiez votre connexion puis rechargez la page.");
-                return;
-            }
+            savePlayerName();
             roomCode = generateCode();
-            isRoomCreator = true;
             trapCardsCount = parseInt(document.getElementById('select-traps').value);
             const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
-            window.history.pushState({ room: roomCode, isRoomCreator: true }, '', newUrl);
-            isDebugGame = false;
+            window.history.pushState({ room: roomCode }, '', newUrl);
+            myRole = "player1";
             initRoom();
         }
 
         function joinGameFromInput() {
-            if (!savePlayerName()) return;
+            savePlayerName();
             const input = document.getElementById('input-room').value.trim().toUpperCase();
             if (input.length >= 3) {
-                if (!supabaseClient) {
-                    showModal("Connexion indisponible", "Supabase n'a pas pu être chargé. Vérifiez votre connexion puis rechargez la page.");
-                    return;
-                }
                 roomCode = input;
-                isRoomCreator = false;
                 const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
-                window.history.pushState({ room: roomCode, isRoomCreator: false }, '', newUrl);
-                isDebugGame = false;
+                window.history.pushState({ room: roomCode }, '', newUrl);
+                myRole = "player2";
                 initRoom();
-            } else {
-                showModal("Code invalide", "Saisissez le code du salon (au moins 3 caractères).");
             }
         }
 
-        function joinRoom(code, creator = false) {
-            if (!supabaseClient) {
-                showModal("Connexion indisponible", "Supabase n'a pas pu être chargé. Vérifiez votre connexion puis rechargez la page.");
-                return;
-            }
+        function joinRoom(code) {
             roomCode = code;
-            isRoomCreator = creator;
-            isDebugGame = false;
+            myRole = "player2";
             initRoom();
         }
 
         function backToHome() {
-            if (channel && supabaseClient) supabaseClient.removeChannel(channel);
-            stopSubmissionSync();
-            stopRoomValidationTimeout();
-            stopOpponentWaitTimeout();
-            channel = null;
-            channelReady = false;
-            isRoomCreator = false;
-            roomValidated = false;
-            isDebugGame = false;
+            if (roomRef) roomRef.off();
             window.history.pushState({}, '', window.location.pathname);
             document.getElementById('screen-menu').classList.remove('hidden');
             document.getElementById('screen-game').classList.add('hidden');
             document.getElementById('screen-waiting').classList.add('hidden');
             document.getElementById('room-info').classList.add('hidden');
-            document.getElementById('reserve-section').classList.add('hidden');
             mySubmission = null;
             opponentSubmission = null;
-            submissionAcknowledged = false;
             isResolutionPhase = false;
-            activeHistoryId = null;
-            refreshBoardHistoryButton();
         }
 
         function initRoom() {
-            stopSubmissionSync();
-            stopRoomValidationTimeout();
-            stopOpponentWaitTimeout();
             document.getElementById('screen-menu').classList.add('hidden');
-            document.getElementById('screen-waiting').classList.toggle('hidden', isRoomCreator);
-            document.getElementById('screen-game').classList.toggle('hidden', !isRoomCreator);
+            document.getElementById('screen-waiting').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
             document.getElementById('room-info').classList.remove('hidden');
             document.getElementById('display-room-code').textContent = roomCode;
-            if (!isRoomCreator) {
-                document.querySelector('#screen-waiting h3').textContent = "Vérification du salon...";
-                document.getElementById('waiting-text').textContent = "Connexion au salon en cours. Veuillez patienter quelques secondes.";
-            }
 
             document.getElementById('game-status-banner').textContent = `Phase 1 (${playerName}) : Remplissez vos 4 indices !`;
             document.getElementById('reserve-section').classList.add('hidden');
 
             mySubmission = null;
             opponentSubmission = null;
-            submissionAcknowledged = false;
             isResolutionPhase = false;
-            activeHistoryId = null;
-            channelReady = false;
-            roomValidated = false;
-            clientId = typeof crypto !== 'undefined' && crypto.randomUUID
-                ? crypto.randomUUID()
-                : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            document.getElementById('btn-submit-clues').disabled = true;
 
-            if (channel) supabaseClient.removeChannel(channel);
+            if (roomRef) roomRef.off();
+            roomRef = db.ref(`rooms/${roomCode}`);
 
-            channel = supabaseClient.channel(`so-clover-${roomCode}`, {
-                config: { broadcast: { self: false } }
-            });
-
-            channel.on('broadcast', { event: 'player-submit' }, payload => {
-                handleOpponentSubmission(payload.payload);
-            });
-            channel.on('broadcast', { event: 'player-submit-ack' }, payload => {
-                handleSubmissionAck(payload.payload);
-            });
-            channel.on('presence', { event: 'sync' }, () => {
-                handleRoomPresenceSync();
-                const hasOpponent = Object.values(channel.presenceState())
-                    .flat()
-                    .some(presence => presence.clientId !== clientId);
-                if (hasOpponent && mySubmission && !submissionAcknowledged && !isResolutionPhase) {
-                    broadcastSubmission();
-                }
-            });
-
-            channel.subscribe(async status => {
-                if (status === 'SUBSCRIBED') {
-                    channelReady = true;
-                    try {
-                        const trackStatus = await channel.track({
-                            clientId,
-                            name: playerName,
-                            isHost: isRoomCreator
-                        });
-                        if (trackStatus !== 'ok') {
-                            showModal("Erreur de connexion", "Impossible de signaler votre présence dans le salon. Rechargez la page pour réessayer.");
-                            return;
-                        }
-                        if (isRoomCreator) {
-                            roomValidated = true;
-                            document.getElementById('btn-submit-clues').disabled = false;
-                        } else {
-                            startRoomValidationTimeout();
-                            handleRoomPresenceSync();
-                        }
-                    } catch (error) {
-                        console.error("Échec du suivi de présence Supabase :", error);
-                        showModal("Erreur de connexion", "Impossible de signaler votre présence dans le salon. Rechargez la page pour réessayer.");
-                    }
-                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-                    channelReady = false;
-                    roomValidated = false;
-                    document.getElementById('btn-submit-clues').disabled = true;
-                    showModal("Erreur de connexion", "La connexion au salon a échoué. Vérifiez votre réseau puis rechargez la page.");
+            // Écouter les soumissions adverses sur Firebase
+            roomRef.on('child_added', (snapshot) => {
+                const data = snapshot.val();
+                if (data && data.sender && data.sender !== myRole) {
+                    handleOpponentSubmission(data);
                 }
             });
 
             generateInitialBoard();
-        }
-
-        function handleRoomPresenceSync() {
-            if (!channel || !channelReady || isRoomCreator || roomValidated) return;
-            const hasHost = Object.values(channel.presenceState())
-                .flat()
-                .some(presence => presence.clientId !== clientId && presence.isHost === true);
-            if (!hasHost) return;
-
-            roomValidated = true;
-            stopRoomValidationTimeout();
-            document.getElementById('btn-submit-clues').disabled = false;
-            document.getElementById('screen-waiting').classList.add('hidden');
-            document.getElementById('screen-game').classList.remove('hidden');
-        }
-
-        function startRoomValidationTimeout() {
-            stopRoomValidationTimeout();
-            roomValidationTimeout = window.setTimeout(() => {
-                roomValidationTimeout = null;
-                handleRoomPresenceSync();
-                if (roomValidated) return;
-                backToHome();
-                showModal("Salon introuvable", "Ce salon n'existe pas ou n'est plus actif. Vérifiez le lien et demandez à l'hôte de créer un nouveau salon.");
-            }, 5000);
-        }
-
-        function stopRoomValidationTimeout() {
-            if (roomValidationTimeout !== null) {
-                window.clearTimeout(roomValidationTimeout);
-                roomValidationTimeout = null;
-            }
-        }
-
-        function startDebugResolution() {
-            if (!savePlayerName()) return;
-            trapCardsCount = parseInt(document.getElementById('select-traps').value);
-            roomCode = "DEBUG";
-            isDebugGame = true;
-            if (channel && supabaseClient) supabaseClient.removeChannel(channel);
-            channel = null;
-            channelReady = false;
-            roomValidated = true;
-            mySubmission = null;
-            opponentSubmission = null;
-            isResolutionPhase = false;
-            activeHistoryId = null;
-
-            document.getElementById('screen-menu').classList.add('hidden');
-            document.getElementById('screen-waiting').classList.add('hidden');
-            document.getElementById('screen-game').classList.remove('hidden');
-            document.getElementById('room-info').classList.remove('hidden');
-            document.getElementById('display-room-code').textContent = "DEBUG";
-            generateInitialBoard();
-
-            const solution = cloneCards(originalSolution);
-            const tiles = shuffleCards([
-                ...cloneCards(solution),
-                ...cloneCards(reserveCards)
-            ]).map(tile => ({ ...tile, rot: Math.floor(Math.random() * 4) }));
-            startResolutionPhase({
-                name: "Joueur de test",
-                clues: {
-                    top: "Indice du haut",
-                    bottom: "Indice du bas",
-                    left: "Indice de gauche",
-                    right: "Indice de droite"
-                },
-                solution,
-                tiles
-            });
         }
 
         function generateInitialBoard() {
-            const shuffled = shuffleCards([...WORDS_DATABASE]);
+            const shuffled = [...WORDS_DATABASE].sort(() => 0.5 - Math.random());
             currentBoardCards = [];
             
             for(let i = 0; i < 4; i++) {
@@ -863,7 +360,6 @@
 
             boardRotation = 0;
             document.getElementById('clover-container').style.transform = `rotate(0deg)`;
-            updateClueTextOrientation();
             
             document.getElementById('clue-top').value = "";
             document.getElementById('clue-bottom').value = "";
@@ -872,7 +368,6 @@
             document.querySelectorAll('.clue-input').forEach(i => i.disabled = false);
             document.getElementById('btn-submit-clues').classList.remove('hidden');
             document.getElementById('btn-verify').classList.add('hidden');
-            document.getElementById('btn-skip-puzzle').classList.add('hidden');
 
             renderBoard();
         }
@@ -896,100 +391,35 @@
 
         function createCardDOM(cardData, index, isReserve) {
             const card = document.createElement('div');
-            card.className = `tile-card relative w-full h-full bg-emerald-100 text-emerald-950 rounded-xl shadow-md cursor-pointer border-2 aspect-square ${selectedReserveIndex === index && isReserve ? 'border-amber-400 ring-4 ring-amber-300' : 'border-emerald-700'}`;
+            card.className = `tile-card relative w-full h-full bg-emerald-100 text-emerald-950 rounded-xl shadow-md p-1.5 flex flex-col justify-between items-center cursor-pointer border-2 aspect-square ${selectedReserveIndex === index && isReserve ? 'border-amber-400 ring-4 ring-amber-300' : 'border-emerald-700'}`;
+            
             card.style.transform = `rotate(${cardData.rot * 90}deg)`;
-            card.style.touchAction = isResolutionPhase ? 'none' : 'manipulation';
-            card.setAttribute('role', 'button');
-            card.setAttribute('aria-label', `Carte ${cardData.words.join(', ')}, orientation ${cardData.rot * 90} degrés`);
-            card.draggable = false;
 
             const words = cardData.words;
-            ['tile-word-top', 'tile-word-right', 'tile-word-bottom', 'tile-word-left'].forEach((position, wordIndex) => {
-                const label = document.createElement('span');
-                label.className = `tile-word ${position}`;
-                const side = ['top', 'right', 'bottom', 'left'][wordIndex];
-                const baseAngle = sideTextAngles[side];
-                const wordLabel = document.createElement('span');
-                wordLabel.className = 'tile-word-label';
-                wordLabel.textContent = words[wordIndex];
-                wordLabel.style.setProperty(
-                    '--text-orientation-correction',
-                    `${getTextOrientationCorrection(side, boardRotation + cardData.rot * 90, baseAngle)}deg`
-                );
-                label.appendChild(wordLabel);
-                card.appendChild(label);
-            });
+            card.innerHTML = `
+                <div class="text-[10px] sm:text-xs font-bold uppercase truncate max-w-[95%] text-emerald-900">${words[0]}</div>
+                <div class="w-full flex justify-between items-center text-[10px] sm:text-xs font-bold uppercase text-emerald-900 px-1">
+                    <span class="-rotate-90 origin-center truncate max-w-[55px]">${words[3]}</span>
+                    <span class="rotate-90 origin-center truncate max-w-[55px]">${words[1]}</span>
+                </div>
+                <div class="text-[10px] sm:text-xs font-bold uppercase truncate max-w-[95%] text-emerald-900">${words[2]}</div>
+            `;
 
-            const gesture = { dragged: false };
             card.onclick = (e) => {
                 e.stopPropagation();
-                if (gesture.dragged) {
-                    gesture.dragged = false;
-                    return;
-                }
                 if (isResolutionPhase) {
                     if (isReserve) {
-                        selectedReserveIndex = index;
+                        if (selectedReserveIndex === index) {
+                            cardData.rot = (cardData.rot + 1) % 4;
+                        } else {
+                            selectedReserveIndex = index;
+                        }
+                        renderBoard();
+                    } else {
+                        cardData.rot = (cardData.rot + 1) % 4;
+                        renderBoard();
                     }
-                    cardData.rot = (cardData.rot + 1) % 4;
-                    renderBoard();
                 }
-            };
-
-            card.onpointerdown = (event) => {
-                if (!isResolutionPhase || (event.pointerType === 'mouse' && event.button !== 0)) return;
-
-                let longPressTimer = window.setTimeout(() => {
-                    gesture.dragged = true;
-                    gesture.dragging = true;
-                    card.classList.add('is-dragging');
-                    if (isReserve) selectedReserveIndex = index;
-                }, 350);
-                let startX = event.clientX;
-                let startY = event.clientY;
-
-                const cleanup = () => {
-                    window.clearTimeout(longPressTimer);
-                    document.removeEventListener('pointermove', onPointerMove);
-                    document.removeEventListener('pointerup', onPointerUp);
-                    document.removeEventListener('pointercancel', onPointerCancel);
-                    card.classList.remove('is-dragging');
-                };
-                const onPointerMove = (moveEvent) => {
-                    if (moveEvent.pointerId !== event.pointerId) return;
-                    if (!gesture.dragging && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 8) {
-                        cleanup();
-                        return;
-                    }
-                    if (gesture.dragging) moveEvent.preventDefault();
-                };
-                const onPointerUp = (upEvent) => {
-                    if (upEvent.pointerId !== event.pointerId) return;
-                    const wasDragging = gesture.dragging;
-                    cleanup();
-                    gesture.dragging = false;
-                    if (!wasDragging) return;
-
-                    const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
-                    const targetSlot = target?.closest('.board-slot');
-                    if (targetSlot) {
-                        moveCardOnBoard({ isReserve, index }, Number(targetSlot.dataset.slot));
-                    } else if (target?.closest('#reserve-section') && !isReserve) {
-                        moveCardToReserve(index);
-                    }
-                    window.setTimeout(() => {
-                        gesture.dragged = false;
-                    }, 0);
-                };
-                const onPointerCancel = () => {
-                    cleanup();
-                    gesture.dragging = false;
-                    gesture.dragged = false;
-                };
-
-                document.addEventListener('pointermove', onPointerMove, { passive: false });
-                document.addEventListener('pointerup', onPointerUp);
-                document.addEventListener('pointercancel', onPointerCancel);
             };
 
             return card;
@@ -1001,7 +431,7 @@
 
             reserveCards.forEach((cardData, idx) => {
                 const wrapper = document.createElement('div');
-                wrapper.className = "w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0";
+                wrapper.className = "w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0";
                 const cardEl = createCardDOM(cardData, idx, true);
                 wrapper.appendChild(cardEl);
                 container.appendChild(wrapper);
@@ -1012,7 +442,13 @@
             if (!isResolutionPhase) return;
 
             if (selectedReserveIndex !== null && reserveCards[selectedReserveIndex]) {
-                placeReserveCard(selectedReserveIndex, slotIndex);
+                const cardToPlace = reserveCards.splice(selectedReserveIndex, 1)[0];
+                if (currentBoardCards[slotIndex]) {
+                    reserveCards.push(currentBoardCards[slotIndex]);
+                }
+                currentBoardCards[slotIndex] = cardToPlace;
+                selectedReserveIndex = null;
+                renderBoard();
             } else if (currentBoardCards[slotIndex]) {
                 reserveCards.push(currentBoardCards[slotIndex]);
                 currentBoardCards[slotIndex] = null;
@@ -1020,67 +456,14 @@
             }
         }
 
-        function allowCardDrop(event) {
-            if (isResolutionPhase) event.preventDefault();
-        }
-
-        function dropCard(event, slotIndex) {
-            event.preventDefault();
-            if (!isResolutionPhase) return;
-            const reserveIndex = Number(event.dataTransfer.getData('text/plain'));
-            if (Number.isInteger(reserveIndex) && reserveCards[reserveIndex]) {
-                placeReserveCard(reserveIndex, slotIndex);
-            }
-        }
-
-        function placeReserveCard(reserveIndex, slotIndex) {
-            const cardToPlace = reserveCards.splice(reserveIndex, 1)[0];
-            if (currentBoardCards[slotIndex]) reserveCards.push(currentBoardCards[slotIndex]);
-            currentBoardCards[slotIndex] = cardToPlace;
-            selectedReserveIndex = null;
-            clearSlotFeedback();
-            renderBoard();
-        }
-
-        function moveCardOnBoard(source, targetIndex) {
-            if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= currentBoardCards.length) return;
-            if (source.isReserve) {
-                if (reserveCards[source.index]) placeReserveCard(source.index, targetIndex);
-                return;
-            }
-            if (source.index === targetIndex || !currentBoardCards[source.index]) return;
-
-            const sourceCard = currentBoardCards[source.index];
-            currentBoardCards[source.index] = currentBoardCards[targetIndex];
-            currentBoardCards[targetIndex] = sourceCard;
-            selectedReserveIndex = null;
-            clearSlotFeedback();
-            renderBoard();
-        }
-
-        function moveCardToReserve(slotIndex) {
-            if (!currentBoardCards[slotIndex]) return;
-            reserveCards.push(currentBoardCards[slotIndex]);
-            currentBoardCards[slotIndex] = null;
-            selectedReserveIndex = null;
-            clearSlotFeedback();
-            renderBoard();
-        }
-
-        function clearSlotFeedback() {
-            document.querySelectorAll('.board-slot').forEach(slot => {
-                slot.classList.remove('is-correct', 'is-incorrect');
-            });
-        }
-
         function rotateBoard() {
             boardRotation = (boardRotation + 90) % 360;
             document.getElementById('clover-container').style.transform = `rotate(${boardRotation}deg)`;
-            updateClueTextOrientation();
-            renderBoard();
         }
 
-        async function submitClues() {
+        function syncClues() {}
+
+        function submitClues() {
             const clues = {
                 top: document.getElementById('clue-top').value.trim(),
                 bottom: document.getElementById('clue-bottom').value.trim(),
@@ -1093,154 +476,47 @@
                 return;
             }
 
-            if (!isDebugGame && (!channelReady || !channel || !roomValidated)) {
-                showModal("Connexion en cours", "Le salon n'est pas encore connecté. Réessayez dans quelques secondes.");
-                return;
-            }
-
-            const allTiles = shuffleCards([
-                ...cloneCards(originalSolution),
-                ...cloneCards(reserveCards)
-            ]).map(tile => ({ ...tile, rot: Math.floor(Math.random() * 4) }));
+            const allTiles = [...originalSolution, ...reserveCards].sort(() => 0.5 - Math.random());
+            allTiles.forEach(t => t.rot = Math.floor(Math.random() * 4));
 
             mySubmission = {
-                submissionId: typeof crypto !== 'undefined' && crypto.randomUUID
-                    ? crypto.randomUUID()
-                    : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-                createdAt: new Date().toISOString(),
-                roomCode,
-                sender: clientId,
+                sender: myRole,
                 name: playerName,
                 clues: clues,
                 tiles: allTiles,
-                solution: cloneCards(originalSolution)
+                solution: originalSolution
             };
-            submissionAcknowledged = false;
 
-            if (!isDebugGame && !(await broadcastSubmission())) {
-                mySubmission = null;
-                return;
+            // Envoi de la soumission dans Firebase
+            if (roomRef) {
+                roomRef.child(myRole).set(mySubmission);
             }
 
             document.getElementById('screen-game').classList.add('hidden');
             document.getElementById('screen-waiting').classList.remove('hidden');
-            document.querySelector('#screen-waiting h3').textContent = "En attente de l'autre joueur...";
-            document.getElementById('waiting-text').textContent = "Votre plateau a été transmis. La partie démarrera dès que votre coéquipier aura également envoyé son plateau.";
 
-            startOpponentWaitTimeout();
-            startSubmissionSync();
             checkIfBothSubmitted();
-        }
-
-        function startOpponentWaitTimeout() {
-            stopOpponentWaitTimeout();
-            opponentWaitTimeout = window.setTimeout(() => {
-                opponentWaitTimeout = null;
-                backToHome();
-                showModal("Attente terminée", "L'autre joueur n'a pas envoyé son plateau dans les 10 minutes. La partie a été abandonnée.");
-            }, 10 * 60 * 1000);
-        }
-
-        function stopOpponentWaitTimeout() {
-            if (opponentWaitTimeout !== null) {
-                window.clearTimeout(opponentWaitTimeout);
-                opponentWaitTimeout = null;
-            }
-        }
-
-        function startSubmissionSync() {
-            stopSubmissionSync();
-            if (!mySubmission || submissionAcknowledged) return;
-            submissionSyncInterval = window.setInterval(() => {
-                if (!mySubmission || submissionAcknowledged) {
-                    stopSubmissionSync();
-                    return;
-                }
-                if (!channelReady) return;
-                broadcastSubmission(false);
-            }, 2000);
-        }
-
-        function stopSubmissionSync() {
-            if (submissionSyncInterval !== null) {
-                window.clearInterval(submissionSyncInterval);
-                submissionSyncInterval = null;
-            }
-        }
-
-        async function broadcastSubmission(showError = true) {
-            if (!channel || !channelReady || !mySubmission) return false;
-            try {
-                const status = await channel.send({
-                    type: 'broadcast',
-                    event: 'player-submit',
-                    payload: mySubmission
-                });
-                if (status === 'ok') {
-                    saveBoardToHistory(mySubmission, 'sent');
-                    return true;
-                }
-                console.error("Échec de l'envoi Broadcast, statut :", status);
-                if (showError) showModal("Envoi impossible", "Votre plateau n'a pas pu être envoyé. Vérifiez votre connexion puis réessayez.");
-                return false;
-            } catch (error) {
-                console.error("Échec de l'envoi Broadcast :", error);
-                if (showError) showModal("Envoi impossible", "Votre plateau n'a pas pu être envoyé. Vérifiez votre connexion puis réessayez.");
-                return false;
-            }
         }
 
         function handleOpponentSubmission(payload) {
-            if (!isValidPuzzleBoard(payload) || payload.sender === clientId) return;
             opponentSubmission = payload;
-            saveBoardToHistory(payload, 'received');
-            acknowledgeSubmission(payload.sender);
             checkIfBothSubmitted();
         }
 
-        async function acknowledgeSubmission(sender) {
-            if (!channel || !channelReady) return;
-            try {
-                const status = await channel.send({
-                    type: 'broadcast',
-                    event: 'player-submit-ack',
-                    payload: { sender: clientId, received: sender }
-                });
-                if (status !== 'ok') console.error("Échec de l'accusé de réception Broadcast, statut :", status);
-            } catch (error) {
-                console.error("Échec de l'accusé de réception Broadcast :", error);
-            }
-        }
-
-        function handleSubmissionAck(payload) {
-            if (!payload || payload.sender === clientId || payload.received !== clientId || !mySubmission) return;
-            submissionAcknowledged = true;
-            stopSubmissionSync();
-        }
-
         function checkIfBothSubmitted() {
-            if (mySubmission && opponentSubmission && !isResolutionPhase) {
+            if (mySubmission && opponentSubmission) {
                 startResolutionPhase(opponentSubmission);
             }
         }
 
-        function startResolutionPhase(puzzleData, fromHistory = false) {
-            if (!isValidPuzzleBoard(puzzleData)) {
-                showModal("Plateau invalide", "Les données reçues pour cette partie sont incomplètes.");
-                return;
-            }
-            stopOpponentWaitTimeout();
+        function startResolutionPhase(puzzleData) {
             document.getElementById('screen-waiting').classList.add('hidden');
             document.getElementById('screen-game').classList.remove('hidden');
             isResolutionPhase = true;
-            activeHistoryId = puzzleData.historyId || puzzleData.submissionId || null;
 
-            document.getElementById('game-status-banner').textContent = fromHistory
-                ? `Phase 2 : résolvez l'énigme de ${puzzleData.name || 'Joueur'} - ${formatBoardDate(puzzleData.savedAt)}`
-                : `Phase 2 : Résolvez l'énigme de ${puzzleData.name || 'votre coéquipier'} !`;
+            document.getElementById('game-status-banner').textContent = `Phase 2 : Résolvez l'énigme de ${puzzleData.name || 'votre coéquipier'} !`;
             document.getElementById('btn-submit-clues').classList.add('hidden');
             document.getElementById('btn-verify').classList.remove('hidden');
-            document.getElementById('btn-skip-puzzle').classList.remove('hidden');
             document.getElementById('reserve-section').classList.remove('hidden');
 
             document.getElementById('clue-top').value = puzzleData.clues.top;
@@ -1249,16 +525,12 @@
             document.getElementById('clue-right').value = puzzleData.clues.right;
             document.querySelectorAll('.clue-input').forEach(i => i.disabled = true);
 
-            originalSolution = cloneCards(puzzleData.solution);
+            originalSolution = puzzleData.solution;
             currentBoardCards = [null, null, null, null];
-            reserveCards = cloneCards(puzzleData.tiles);
+            reserveCards = puzzleData.tiles;
             selectedReserveIndex = null;
             boardRotation = 0;
             document.getElementById('clover-container').style.transform = `rotate(0deg)`;
-            updateClueTextOrientation();
-            document.querySelectorAll('.board-slot').forEach(slot => {
-                slot.classList.remove('is-correct', 'is-incorrect');
-            });
 
             renderBoard();
         }
@@ -1273,16 +545,16 @@
 
                 if (placed && target && isSameCard(placed.words, target.words) && (placed.rot % 4 === target.rot % 4)) {
                     correctCount++;
-                    slotEl.classList.remove('is-incorrect');
-                    slotEl.classList.add('is-correct');
+                    slotEl.classList.remove('border-red-500', 'border-emerald-600/40');
+                    slotEl.classList.add('border-green-400', 'ring-4', 'ring-green-400/50');
                 } else {
-                    slotEl.classList.remove('is-correct');
-                    slotEl.classList.add('is-incorrect');
+                    slotEl.classList.remove('border-green-400', 'border-emerald-600/40');
+                    slotEl.classList.add('border-red-500', 'ring-4', 'ring-red-500/50');
                 }
             });
 
             if (correctCount === 4) {
-                showPuzzleSuccessModal();
+                showModal("🏆 Victoire !", "Bravo ! Toutes les tuiles sont parfaitement positionnées et orientées ! Score : 6 points !");
             } else {
                 showModal("Résultat", `${correctCount} tuile(s) bien positionnée(s) sur 4. Ajustez les tuiles encadrées en rouge et vérifiez les rotations !`);
             }
@@ -1292,34 +564,10 @@
             return JSON.stringify(wordsA) === JSON.stringify(wordsB);
         }
 
-        function cloneCards(cards) {
-            return cards.map(card => ({ words: [...card.words], rot: card.rot }));
-        }
-
-        function shuffleCards(cards) {
-            for (let index = cards.length - 1; index > 0; index--) {
-                const swapIndex = Math.floor(Math.random() * (index + 1));
-                [cards[index], cards[swapIndex]] = [cards[swapIndex], cards[index]];
-            }
-            return cards;
-        }
-
         function showModal(title, text) {
             document.getElementById('modal-title').textContent = title;
             document.getElementById('modal-body').textContent = text;
-            document.getElementById('modal-close').classList.remove('hidden');
-            document.getElementById('modal-close').textContent = "Fermer";
-            document.getElementById('modal-confirm-skip').classList.add('hidden');
-            document.getElementById('modal-next-puzzle').classList.add('hidden');
-            document.getElementById('modal-home').classList.add('hidden');
             document.getElementById('modal-overlay').classList.remove('hidden');
-        }
-
-        function showPuzzleSuccessModal() {
-            showModal("🏆 Victoire !", "Bravo ! Toutes les tuiles sont parfaitement positionnées et orientées ! Score : 6 points !");
-            document.getElementById('modal-close').classList.add('hidden');
-            document.getElementById('modal-next-puzzle').classList.remove('hidden');
-            document.getElementById('modal-home').classList.remove('hidden');
         }
 
         function closeModal() {
